@@ -1,0 +1,19 @@
+find /path/to/files* -mtime +5 -exec rm {} \;
+
+ -mtime, is used to specify the number of days old that the file is. If you enter +5, it will find files older than 5 days.
+ -exec, allows you to pass in a command such as rm. The {} \; at the end is required to end the command.
+
+Get list of files which are older than 5 days.
+
+# find /root/ -mtime +5 -type f -exec ls -lrt {} \;
+
+name pattern
+# find /root/ -name '*cookie*' -mtime +5 -type f -exec ls -lrt {} \;
+
+After checking and confirming the output go for file removal script.
+
+# find /root/ -name '*cookie*' -mtime +5 -type f -exec rm -fv {} \;
+
+
+find /home/sajal/testfile/* -mtime +1500 -type f -exec ls -lrt {} \;
+find /home/sajal/testfile/* -mtime +1500 -type f -exec rm -fv {} \;
