@@ -1,0 +1,53 @@
+[erpuser@ mycompanypaymentbankpayment ~]$ cat /paymentbank_BANK/sftpupload.sh
+#!/bin/bash
+
+# Configuration
+SFTP_USER="CMP_ mycompany_12454"
+SFTP_HOST="sfg.paymentbank"
+PASS_FILE="sftp_password.txt"
+SFTP_PASS=$(<"$PASS_FILE")
+LOCAL_DIR_OUTBOX="/paymentbank_BANK/paymentbank-fileupload/outbox"
+LOCAL_DIR_INBOX="/paymentbank_BANK/paymentbank-fileupload/inbox"
+REMOTE_DIR_INBOX="/REQUEST"
+#REMOTE_DIR_OUTBOX="/home/sajal/test/inbox"
+ARCHIVE_DIR="/paymentbank_BANK/paymentbank-fileupload/outbox-archive"  # Directory for moved uploaded files
+LOG_DIR="/paymentbank_BANK/log"  # Directory for log files
+LOG_FILE="$LOG_DIR/sftp_upload_script_$(date +%Y%m%d).log"  # Log file name with date
+#DOWNLOAD_LOG="/root/sftptest/log/downloadlog/download.log"
+
+# Date format for logging
+DATE=$(date '+%Y-%m-%d %H:%M:%S')
+# Function to get the current date for logging
+log_date() {
+    date '+%Y-%m-%d %H:%M:%S'
+}
+
+# Function to upload files
+upload_files() {
+    shopt -s nullglob  # Ensure that empty patterns expand to nothing
+    files=("$LOCAL_DIR_OUTBOX"/*)
+
+    if [ ${#files[@]} -eq 0 ]; then
+        echo "$DATE: No files available to upload from  mycompany" >> "$LOG_FILE"
+        return
+    fi
+
+    for file in "${files[@]}"; do
+        if [[ -f "$file" && $(find "$file" -mmin +1) ]]; then
+            sshpass -p "$SFTP_PASS" sftp -oport=2201 "$SFTP_USER"@"$SFTP_HOST" <<< $"put $file $REMOTE_DIR_INBOX/"
+            if [[ $? -eq 0 ]]; then
+                echo "$DATE: Successfully uploaded from  mycompany $file to paymentbank $REMOTE_DIR_INBOX" >> "$LOG_FILE"
+                # Move the uploaded file to the archive directory
+                mv "$file" "$ARCHIVE_DIR"
+                echo "$DATE: Archived $file to $ARCHIVE_DIR" >> "$LOG_FILE"
+            else
+                echo "$DATE: Failed to upload $file" >> "$LOG_FILE"
+            fi
+        fi
+    done
+}
+#call the function
+upload_files
+
+You have new mail in /var/spool/mail/erpuser
+[erpuser@ mycompanypaymentbankpayment ~]$
