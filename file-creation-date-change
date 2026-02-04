@@ -1,0 +1,13 @@
+touch -a -m -t 201512180130.09 fileName.ext
+
+-a = accessed
+-m = modified
+-t  = timestamp - use [[CC]YY]MMDDhhmm[.ss] time format
+
+[root@jeevanproman sajal]# touch -a -m -t 202302100130.09 testfileName{1..10}.dat
+[root@jeevanproman sajal]# ls -lrt
+total 12
+-rw-r--r-- 1 root     root        0 Feb 10  2023 testfileName.ext
+-rw-r--r-- 1 root     root        0 Feb 10  2023 testfileName9.dat
+-rw-r--r-- 1 root     root        0 Feb 10  2023 testfileName8.dat
+-rw-r--r-- 1 root     root        0 Feb 10  2023 testfileName7.dat
