@@ -1,0 +1,83 @@
+# top –i	##This hides all the idle processes, making it easier to sort through the list.
+5@wbcrmd2 ~]$ watch -n 5 free -m
+# sar -r **to find out memory utilization with time stamp
+
+[1070585@wbcrmdb1 ~]$ sar -u 2 5
+sar - System Activity Reporter
+# sar -u 1 5
+04:37:40 PM     CPU %user %nice %system  %iowait    %steal     %idle
+04:37:41 PM     all  5.25  0.00   3.78     0.00      0.00     90.97
+04:37:42 PM     all  6.06  0.00   3.27     0.33      0.00     90.34
+Average:        all  0.00  0.00   0.00     0.00      0.00    100.00
+***Monitoring Memory Use with vmstat
+
+vmstat [options][delay [count]] ###Geting overall CPU usage
+ # vmstat -S M 45 10
+procs -----------memory---------- ---swap-- -----io---- --system-- -----cpu-----
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+ 0  0      1    659     76     95    0    0     0     0    5   11  0  0 100  0  0
+ 0  0      1    659     76     95    0    0     0     0   22   18  0  0 100  0  0
+
+vmstat shows memory usage over a period of time.
+-SM flag shows the output in MB
+45 is the report interval in seconds
+10 is the number of times to report.
+
+Below commands helps determine the top 10 processes using RAM
+$ ps -A --sort -rss -o comm,pmem,rss |head -n 11
+COMMAND         %MEM   RSS
+jstart           9.3 6191608
+icman            0.5 333488
+jc.sapPPL_J02    0.1 114608
+igspw_mt         0.0 61944
+igspw_mt         0.0 61872
+sapstartsrv      0.0 41988
+sysedge          0.0 37152
+sapstartsrv      0.0 24788
+igsmux_mt        0.0 19560
+gnome-settings-  0.0 18452
+[1070585@wbepapp2 ~]$
+Below commands helps determine the top 10 processes using CPU
+# ps -eo pcpu,pid,user,args | sort -k 1 -r | head -10
+# ps -eo pcpu,pid,user,args | head -1 ; ps -eo pcpu,pid,user,args | sort -nk 1 -r | head -10
+## ps aux --sort=-pcpu | head -10
+You could then investigate the threads attached to this PID  via:
+# ps -p 16896 -L
+
+In similar way the 'ps' output can sorted to determine which processes are taking most of system memory.
+# ps aux | head -1 ;  ps aux| sort -nk4 -r| head -5
+
+[root@linuxtestserver yum.repos.d]# ps -eo pcpu,pid,user,args | sort -k 1 -r | head -10
+%CPU   PID USER     COMMAND
+ 0.1 21351 root     /usr/bin/vmtoolsd -n vmusr
+ 0.0     9 root     [rcu_sched]
+ 0.0  9415 root     [kworker/u4:0]
+ 0.0     8 root     [rcu_bh]
+ 0.0   823 root     /usr/sbin/NetworkManager --no-daemon
+ 0.0     7 root     [migration/0]
+ 0.0   781 root     /bin/bash /usr/sbin/ksmtuned
+ 0.0   768 root     /usr/sbin/mcelog --ignorenodev --daemon --syslog
+ 0.0   729 root     /usr/sbin/gssproxy -D
+[root@linuxtestserver yum.repos.d]# 
+****When RAM and swap are exhausted, the kernel frees memory automatically by using OOM Killer to kill processes.
+%% OOM Killer has no idea which processes are critical to your application.
+# grep -i kill /var/log/messages*
+host kernel: Out of Memory: Killed process 2592 (oracle)
+
+***display the utilization of each cpu individually in linux****
+
+[root@linuxtestserver yum.repos.d]# mpstat -P ALL
+Linux 3.10.0-1160.el7.x86_64 (linuxtestserver)  10/31/2022      _x86_64_        (2 CPU)
+
+12:25:26 AM  CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle
+12:25:26 AM  all    0.09    0.00    0.04    0.01    0.00    0.00    0.00    0.00    0.00   99.86
+12:25:26 AM    0    0.09    0.00    0.04    0.01    0.00    0.00    0.00    0.00    0.00   99.86
+12:25:26 AM    1    0.09    0.00    0.04    0.01    0.00    0.00    0.00    0.00    0.00   99.86
+[root@linuxtestserver yum.repos.d]# mpstat -P ALL 5 7  ##it will show output 7times with 5second interval.
+
+**iostat Command for Average Usage
+# iostat  ##The system will display average CPU usage since the last boot. It will also display input/output load (disk read/write activity).
+
+
+obtain the list of threads in "D" state: ps auxH | awk '$8 ~ /^D/{print}'
+show the stack of each thread sudo cat /proc/<PID>/stack
