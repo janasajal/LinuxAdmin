@@ -1,0 +1,24 @@
+vi /etc/exports
+Basic Syntax:
+
+/path/to/directory client(options)
+Example Entry:
+
+/srv/nfs/share 192.168.1.0/24(rw,sync,no_root_squash)
+Common Options:
+
+rw: Read and write access.
+ro: Read-only access.
+sync: Writes changes to disk before responding to the client.
+async: Allows the server to respond to requests before changes are written to disk.
+no_root_squash: Allows root on the client to have root privileges on the server.
+root_squash: Maps root on the client to an anonymous UID/GID on the server.
+all_squash: Maps all users to an anonymous UID/GID.
+anonuid and anongid: Specify the UID and GID for anonymous users.
+
+[root@wbsedclsbipayment sbi-fileupload]# cat /etc/exports
+/paymnt_BANK/paymnt-fileupload 10.251.xx.xx(ro,sync)
+[root@wbsedclsbipayment sbi-fileupload]#
+
+Sceanrio: 
+If a ro shared file not accessible for read, then assign the uid & gid of the file to nfs client system user. To prevent it use all_squash.
