@@ -1,0 +1,43 @@
+rescan-scsi-bus.sh 	**## to use this command need install # yum install sg3_utils-1.37-19.el7.x86_64***
+
+or use below command
+  284  echo "- - -" > /sys/class/scsi_host/host1/scan
+  285  echo "- - -" > /sys/class/scsi_host/host2/scan
+  286  echo "- - -" > /sys/class/scsi_host/host3/scan
+  287  echo "- - -" > /sys/class/scsi_host/host4/scan
+
+**To find newly added mpath* disk .. need to compare output of mpath -ll & pvs. if a disk is available in mpath but not in pv then that will be the newly added disk.
+
+05  multipath -ll | grep mpath
+#newly created mpath ID will show like below
+#mpatha 360xxx2ef
+#pvs
+
+#pvcreate /dev/mapper/mpatha
+#pvs
+ #vgcreate cauimdb /dev/mapper/mpatha
+ # vgs
+# lvcreate -L +1024G -n dccrmbkplv DCCRMBKPVG
+# lvs
+# mkfs.ext3 /dev/DCCRMBKPVG/dccrmbkplv
+# mkdir /DCCRMBKP
+# mount /dev/DCCRMBKPVG/dccrmbkplv /DCCRMBKP/
+
+945  vgextend vg-app1 /dev/mapper/mpath4
+946  vgs
+ lvextend -L +53248M /dev/mapper/vg--app1-u01_lv1
+resize2fs
+
+
+---vmware disk addition---
+always add separate disk as extendind existing disk may result in fatal.
+#fdisk -l		**it will show the new disk name, whether it is new or old check with #pvs command as it will show previously created pv.
+then
+# pvcreate /dev/sdf  **sdf is new disk not shown in pvs.
+now check with #pvs 
+then
+# vgs   **which vg we will extend**
+#vgextend datavg /dev/sdf
+#vgs
+#lvextend -L +50G /dev/mapper/datavg/lvname
+#resize2fs /dev/mapper/datavg/lvname
