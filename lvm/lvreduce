@@ -1,0 +1,15 @@
+625  fuser -k /tivolidata/
+ 626  umount -f /tivolidata/
+ 643  e2fsck -f /dev/mapper/VG-tivolidataLV
+ 644  resize2fs -p /dev/mapper/VG-tivolidataLV 22G
+655  lvresize -L 22G /dev/mapper/VG-tivolidataLV
+
+# e2fsck -f /dev/your_volume_group/your_logical_volume
+
+for an ext3 and ext4 based file system, run the following command.
+
+# resize2fs /dev/mapper/vg01-lv002
+
+For the xfs file system, use the following command.
+
+# xfs_growfs /dev/mapper/vg01-lv002
