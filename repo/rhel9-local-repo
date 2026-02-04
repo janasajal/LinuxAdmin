@@ -1,0 +1,24 @@
+[Local-BaseOS]
+name=Red Hat Enterprise Linux 9 - BaseOS
+metadata_expire=-1
+gpgcheck=0
+enabled=1
+baseurl=file:///var/localrepo/RHEL-9-4-0-BaseOS-x86_64/BaseOS/
+
+[Local-AppStream]
+name=Red Hat Enterprise Linux 9 - AppStream
+metadata_expire=-1
+gpgcheck=0
+enabled=1
+baseurl=file:///var/localrepo/RHEL-9-4-0-BaseOS-x86_64/AppStream/
+
+
+
+
+# createrepo -v /var/localrepo/RHEL-9-4-0-BaseOS-x86_64/BaseOS/
+# createrepo -v /var/localrepo/RHEL-9-4-0-BaseOS-x86_64/AppStream/
+
+If you want to prevent the automatic creation of the redhat.repo file Set enabled=0 to disable the plugin
+#vi /etc/yum/pluginconf.d/subscription-manager.conf
+[main]
+enabled=0
