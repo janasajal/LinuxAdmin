@@ -1,0 +1,10 @@
+In order to clear PageCache only run:
+
+# sync; echo 1 > /proc/sys/vm/drop_caches
+
+2. In order to clear dentries (Also called as Directory Cache) and inodes run:
+
+Thses below two are not required..
+# sync; echo 2 > /proc/sys/vm/drop_caches
+3. In order to clear PageCache, dentries and inodes run:
+# sync; echo 3 > /proc/sys/vm/drop_caches
