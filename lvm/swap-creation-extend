@@ -1,0 +1,18 @@
+***SWAP creation***
+# lvcreate -L 5G -n LogVol_swap1 vg00
+# mkswap /dev/vg00/LogVol_swap1
+# vi /etc/fstab
+/dev/mapper/vg00-LogVol_swap1   swap     swap    defaults     0 0
+swapon -va
+*************
+***SWAP Extend ***
+# swapoff -v /dev/SwapVG/SwapLV
+# lvresize /dev/SwapVG/SwapLV -L +6G
+# mkswap /dev/vg00/LogVol_swap1
+# swapon -va
+
+***SWAP space reduction***
+# swapoff -v /dev/SwapVG/SwapLV
+# lvresize /dev/SwapVG/SwapLV -L -6G
+# mkswap /dev/vg00/LogVol_swap1
+# swapon -va
