@@ -1,0 +1,57 @@
+[root@epppdap5 ~]# cat /etc/sysconfig/network-scripts/ifcfg-bond0
+DEVICE=bond0
+BOOTPROTO=none
+ONBOOT=yes
+TYPE=Ethernet
+USERCTL=no
+PEERDNS=yes
+NM_CONTROLLED=no
+NETMASK=255.255.255.0
+IPADDR=10.251.xx.xx
+GATEWAY=10.251.xx.xx
+[root@epppdap5 ~]# cat /etc/sysconfig/network-scripts/ifcfg-eth0
+DEVICE=eth0
+HWADDR=5C:F3:FC:DB:D2:3C
+DHCP_HOSTNAME=epppdap5.xx.in
+TYPE=Ethernet
+UUID=fc544833-0553-41fc-9927-c691d176aaff
+ONBOOT=yes
+NM_CONTROLLED=no
+BOOTPROTO=none
+USERCTL=no
+PEERDNS=yes
+MASTER=bond0
+SLAVE=yes
+[root@epppdap5 ~]# cat /etc/sysconfig/network-scripts/ifcfg-eth1
+DEVICE=eth1
+HWADDR=5C:F3:FC:DB:D2:3E
+TYPE=Ethernet
+UUID=6f6897ab-6f4a-47d2-a4e5-70f98c603eb4
+DHCP_HOSTNAME=epppdap5.xx.in
+ONBOOT=yes
+NM_CONTROLLED=no
+BOOTPROTO=none
+USERCTL=no
+PEERDNS=yes
+MASTER=bond0
+SLAVE=yes
+[root@epppdap5 ~]#
+
+iptables / firewall off
+selinux disabled
+##
+
+[root@wbpodbpr network-scripts]# cat /etc/modprobe.d/modprobe.conf
+alias bond0 bonding
+alias bond1 bonding ## For 2nd bonding
+options bonding mode=1 miimon=100
+[root@wbpodbpr network-scripts]#
+
+#modprobe bonding
+netw
+ 211  service NetworkManager status
+  212  service NetworkManager stop
+  213  service NetworkManager status
+  214  chkconfig NetworkManager off
+  215  chkconfig --list|grep -i NetworkManager
+  216  service network restart
