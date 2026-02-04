@@ -1,0 +1,75 @@
+If ntp not install 
+# yum install ntp
+# systemctl start ntpd
+# systemctl enable ntpd
+
+# vim /etc/ntp.conf
+
+restrict 127.0.0.1
+restrict -6 ::1
+
+# Hosts on local network are less restricted.
+#restrict 192.168.1.0 mask 255.255.255.0 nomodify notrap
+
+# Use public servers from the pool.ntp.org project.
+# Please consider joining the pool (http://www.pool.ntp.org/join.html).
+#server 0.rhel.pool.ntp.org iburst
+#server 1.rhel.pool.ntp.org iburst
+#server 2.rhel.pool.ntp.org iburst
+#server 3.rhel.pool.ntp.org iburst
+
+server 10.251.xx.xx
+server 10.251.xx.xx
+
+# service ntpd start
+[1070585@wbepapp4 ~]$ ntpq -p
+     remote           refid      st t when poll reach   delay   offset  jitter
+==============================================================================
+x10.251.xx.xx    LOCAL(0)        11 u  306 1024  377    0.722  895.396   1.133
+x10.251.xx.xx    46.19.96.19      3 u  220 1024  377    0.688  -2012.6   0.790
+[1070585@wbepapp4 ~]$
+To set time use the following syntax:
+# date +%T -s "10:13:13"
+
+# date --set="2 OCT 2006 18:00:00"
+
+ntpdate –u 10.251.33.80
+Force an update :
+# ntpd -gq
+-g – requests an update irrespective of the time offset
+-q – requests the daemon to quit after updating the date from the ntp server.
+
+After this initial sync, NTP client will talk to the NTP server on an on-going basis to make sure the local time reflects the accurate time.
+
+You can also use the following command to get the current status of ntpd.
+
+# ntpdc -c sysinfo
+
+To sychronise ntp server 
+
+# timedatectl
+Local time: Wed 2023-02-08 13:18:49 IST
+  Universal time: Wed 2023-02-08 07:48:49 UTC
+        RTC time: Wed 2023-02-08 07:48:59
+       Time zone: Asia/Kolkata (IST, +0530)
+     NTP enabled: no
+NTP synchronized: no
+ RTC in local TZ: no
+      DST active: n/a
+
+# timedatectl set-ntp true
+**for RHEL 6 # tzdata-update
+
+# timedatectl set-ntp true
+
+# systemctl status ntpd
+
+# systemctl start ntpd
+
+# systemctl enable ntpd
+
+# hwclock --systohc
+
+callhome0@de.ibm.com
+# timedatectl list-timezones
+# timedatectl set-timezone America/New_York
