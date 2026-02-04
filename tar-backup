@@ -1,0 +1,16 @@
+tar -cvf /backup/usrsap-7-29-2020.tar /usr/sap/ --exclude=trans
+  df -Th
+
+list of content in a archive file
+# tar -tvf /backup/usrsap-7-29-2020.tar
+
+To split a large tar 
+# split -b 10G test.tar new_ab
+
+then use
+# mv new_ab_ff new_ab_ff.tar
+
+tar --skip-old-files -xvf /root/test.tar
+
+tar --use-compress-program=lz4 -cvf /root/test.tar.lz4 /root/sajal/
+tar --use-compress-program=lz4 -xvf /root/test.tar.lz4
