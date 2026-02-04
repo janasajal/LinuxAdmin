@@ -1,0 +1,11 @@
+  Unreachable NFS mount (very common)
+
+Stale mount (NFS server down or rebooted)
+
+Hanging network storage
+Also related with permission of /etc/mtab has been changed to 600
+ ##to check permission 
+ls -ld /etc/mtab
+
+## to change permission to 644
+chmod 644 /etc/mtab
