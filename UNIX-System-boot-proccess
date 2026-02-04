@@ -1,0 +1,31 @@
+The Linux system boot process involves several stages, each crucial for initializing the system and loading the operating system. Here's a detailed breakdown:
+
+ 1. BIOS/UEFI Initialization
+- BIOS (Basic Input/Output System)or UEFI (Unified Extensible Firmware Interface) initializes the hardware components and performs a Power-On Self Test (POST) to ensure everything is functioning correctly.
+- It then locates and loads the bootloader from the bootable device (e.g., hard drive, USB).
+
+ 2. Bootloader Stage
+- The bootloader (e.g., GRUB, LILO) is responsible for loading the Linux kernel into memory.
+- It provides a menu to select different kernel versions or operating systems if multiple are installed.
+- Once the kernel is selected, the bootloader loads it into memory and passes control to it.
+
+3. Kernel Initialization
+- The Linux kernel initializes and configures the hardware, including CPU, memory, and device drivers.
+- It mounts the root filesystem specified by the bootloader.
+- The kernel then starts the `init` process (or `systemd` in modern systems), which is the first user-space process and has a PID of 1.
+
+4. Init/Systemd Process
+- Init or systemd is responsible for initializing the user space and starting essential services.
+
+ 5. Runlevel/Target Initialization
+- The system enters a specific runlevel (for `init`) or target (for `systemd`), which defines the state of the machine and the services that should be running.
+- Common runlevels/targets include:
+  - Runlevel 1 (rescue mode)
+  - Runlevel 3 (multi-user mode without GUI)
+  - Runlevel 5 (multi-user mode with GUI)
+  - Runlevel 6 (reboot)
+  - Systemd targets like `multi-user.target` and `graphical.target`.
+
+6. User Login
+- Once all services are started, the system displays a login prompt (TTY for command-line login or a graphical login screen for GUI).
+- Users can log in and start using the system.
