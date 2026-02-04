@@ -1,0 +1,69 @@
+to check interface 
+ethtool eth3
+Vi /etc/sysconfig/network-scripts/ifcfg-enp16s0f0
+TYPE=ethernet
+BOOTPROTO=none
+DEVICE=enp16s0f0
+USERCTL=no
+ONBOOT=yes
+MASTER=bond0
+SLAVE=yes
+
+_______________
+
+Vi /etc/sysconfig/network-scripts/ifcfg-enp16s0f1
+
+TYPE=ethernet
+BOOTPROTO=none
+DEVICE=enp16s0f1
+USERCTL=no
+ONBOOT=yes
+MASTER=bond0
+SLAVE=yes
+
+Vi /etc/sysconfig/network-scripts/ifcfg-bond0
+
+DEVICE=bond0
+TYPE=Bond
+BOOTPROTO=none
+USERCTL=no
+ONBOOT=yes
+NM_CONTROLLED=no
+BONDING_MASTER=yes
+#IPADDR=10.251.37.146
+#NETMASK=255.255.255.0
+#GATEWAY=10.251.37.1
+BRIDGE=br25
+BONDING_OPTS="mode=1 miimon=100"
+
+____________
+
+Vi /etc/sysconfig/network-scripts/ifcfg-br25
+DEVICE=br25
+BOOTPROTO=none
+ONBOOT=yes
+TYPE=Bridge
+USERCTL=no
+NM_CONTROLLED=no
+IPADDR=10.251.37.146
+NETMASK=255.255.255.0
+GATEWAY=10.251.37.1
+NAME=br25
+-------------------
+##
+cat /etc/modprobe.conf
+alias bond0 bonding
+options bonding mode=1 miimon=100
+
+ 
+#modprobe bonding
+netw
+ 211  service NetworkManager status
+  212  service NetworkManager stop
+  213  service NetworkManager status
+  214  chkconfig NetworkManager off
+  215  chkconfig --list|grep -i NetworkManager
+  216  service network restart
+SElinux & Firewall disable
+
+** Systemctl restart network
