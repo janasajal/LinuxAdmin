@@ -1,0 +1,29 @@
+***LV create***
+# fdisk -l 
+**step by step create partition the new disk**
+ 
+# pvcreate /dev/sdd
+# vgcreate DCCRMBKPVG /dev/sdd
+# vgs
+# lvcreate -L +1024G -n dccrmbkplv DCCRMBKPVG
+# lvs
+# mkfs.ext3 /dev/DCCRMBKPVG/dccrmbkplv
+# mkdir /DCCRMBKP
+# mount /dev/DCCRMBKPVG/dccrmbkplv /DCCRMBKP/
+
+***LV extend***
+# lvextend -L +500G /dev/DCCRMBKPVG/dccrmbkplv
+lvcreate -l +100%FREE -n eofficelv eofficeapp2vg
+# resize2fs -p /dev/DCCRMBKPVG/dccrmbkplv
+
+**
+/etc/fstab entry must
+*** for gfs2 file system
+  390  lvextend -L +20G /dev/mapper/epdbvg-lv_backup
+  391  gfs2_grow /dev/mapper/epdbvg-lv_backup
+
+for an ext3 and ext4 based file system, run the following command.
+# resize2fs /dev/mapper/vg01-lv002
+
+For the xfs file system, use the following command.
+# xfs_growfs /dev/mapper/vg01-lv002
