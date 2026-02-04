@@ -1,0 +1,3 @@
+first unmout the file system.
+then # lvchange -an -v /path-to-LV-volume **to deactivate lvm
+# lvremove -vf /path-to-LV-volume
