@@ -1,0 +1,35 @@
+First modify the multipath.conf file 
+n.b. : just remove hash from defaults conditions of the multipath.conf file.
+
+#vim /usr/share/doc/device-mapper-multipath-0.4.9/multipath.conf
+defaults {
+        user_friendly_names yes
+        find_multipaths yes
+}
+##
+## Here is an example of how to configure some standard options.
+##
+#
+defaults {
+        polling_interval        10
+        path_selector           "round-robin 0"
+        path_grouping_policy    multibus
+        uid_attribute           ID_SERIAL
+        prio                    alua
+        path_checker            readsector0
+        rr_min_io               100
+        max_fds                 8192
+        rr_weight               priorities
+        failback                immediate
+        no_path_retry           fail
+        user_friendly_names     yes
+}
+
+THEN copy the same file to /etc/
+# cp -pr /usr/share/doc/device-mapper-multipath-0.4.9/multipath.conf /etc/
+#systemctl start multipathd.service
+#systemctl status multipathd.service
+#systemctl enable multipathd.service
+
+N.B.: to get /etc/multipath/bindings
+NOTE: this file is automatically maintained by the multipath program.
