@@ -1,0 +1,30 @@
+##### Start a cluster step by step ####  RHL 6
+clustat
+clustat -i1
+To start the cluster software on a node, type the following commands in this order:
+1.	service cman start
+2.	service clvmd start, if CLVM has been used to create clustered volumes
+3.	service gfs2 start, if you are using Red Hat GFS2
+	service gfs start, if you are using Red Hat GFS ...rhel5.1
+4.	service rgmanager start, if you using high-availability (HA) services (rgmanager)
+[root@example-01 ~]#
+
+##### Stop a cluster step by step ####
+
+To stop the cluster software on a node, type the following commands in this order:
+
+1.	service rgmanager stop, if you using high-availability (HA) services (rgmanager).
+2.	service gfs2 stop, if you are using Red Hat GFS2
+	service gfs stop, if you are using Red Hat GFS ...rhel5.1
+3.	service clvmd stop, if CLVM has been used to create clustered volumes
+4.	service cman stop
+...
+clusvcadm -r service:pidbse_service -m pidbse 	##clusvcadm -r SERVICE_NAME -m  OWNER
+clusvcadm -r service:srv_nfs -m pidbse
+clusvcadm -r service:wbepcisec_rg -m wbepcisec
+##
+mount -o vers=3 10.251.21.xx:/usr/sap/trans /usr/sap/trans
+###
+If file is not mounting
+clvmd
+clvmd start
