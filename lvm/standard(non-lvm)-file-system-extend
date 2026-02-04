@@ -1,0 +1,33 @@
+shutdown the vm
+Extend the physical disk
+on the system
+# lsblk
+sda      8:0    0   40G  0 disk
+├─sda1   8:1    0  600M  0 part /boot
+└─sda2   8:2    0   20G  0 part /
+
+###Resize the partition with parted
+sudo parted /dev/sda
+Inside the prompt:
+
+(parted) print
+
+##You’ll see something like:
+
+Number  Start   End     Size    Type     File system  Flags
+ 1      1MB     600MB   600MB   primary  xfs          boot
+ 2      600MB   20GB    19.4GB  primary  xfs
+Now extend partition 2 to the end of the disk:
+
+(parted) resizepart 2 100%
+(parted) quit
+
+###
+If your root is xfs (default in Fedora):
+
+sudo xfs_growfs /
+
+
+If your root is ext4:
+
+sudo resize2fs /dev/sda2
