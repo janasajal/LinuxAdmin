@@ -1,0 +1,39 @@
+$ rsync options source destination
+rsync -azv /var/opt/installation/inventory/ 10.251.16.100:/root/temp/ --progress
+rsync -azv /var/opt/installation/inventory/ username@10.251.16.100:/root/temp/
+
+*** N.B. -z option will decrease the copying speed.
+
+rsync option -a indicates archive mode. -a option does the following
+Recursive mode
+Preserves symbolic links
+Preserves permissions
+Preserves timestamp
+Preserves owner and group
+
+-z, --compress              compress file data during the transfer
+
+
+** Best Practice **
+nohup rsync -az /poarchive/ 10.251.16.xx:/poarchive/ &
+
+** never use -v in nohup as nohup.out file will increase continuously.
+
+
+otherwise nohup.out inside /root directories will increase
+rsync -av --exclude='*.txt' original/ duplicate/
+
+find /root/RAJSEKHORE/fol5/folB/ -type f | xargs -n 1 -P 2 -I{} rsync -av {} /root/ram/sajal/
+
+find fi2el6ilvmi67kj7aaaacyb24h/ -type f | xargs -n 1 -I{} rsync -av {} /backup_new/Test/sajal/
+
+find 05/fi2el6ilvmi67kj7aaaacyb24h/ -type f | xargs -n 10 -P 4 -I{} rsync -av --ignore-existing {} /opt/test/
+*** File copy in sync mode ***
+# rsync -av --delete /tmp/source/ /home/destination/
+
+
+
+#scp -pr SAP_NW75/ 10.252.16.76:/sapdump/
+#scp -pr nimsoftlinux/ 1070585@10.251.16.109:/home/1070585/
+to run this command in background ..
+nohup scp -pr SAP_NW75/ 10.252.16.76:/sapdump/ &
