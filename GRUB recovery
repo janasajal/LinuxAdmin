@@ -1,0 +1,15 @@
+How to Recover Corrupted GRUB 2 Bootloader in RHEL 
+
+To reinstall or recover the 'grub.cfg' file or 'grub2' directory you need to boot your system with the installation DVD/ISO image. On boot screen of Red Hat 8, Select the ‘Troubleshooting’ option and press enter.
+
+In the next screen, select the ‘Rescue a Red Hat Enterprise Linux system’ option and press enter.
+# chroot /mnt/sysimage ##By running this command, you effectively "enter" your installed system, allowing you to run commands as if you had booted normally. This is useful for tasks like reinstalling GRUB, fixing configuration files, or performing other maintenance tasks.
+# lsblk ##to identify the grub configuration file (/boot)
+# grub2-install /dev/sda  ##Install GRUB 2 on the primary hard disk (usually /dev/sda)
+# grub2-mkconfig -o /boot/grub2/grub.cfg ## output of this command will save in grub.cfg file.
+Optional if selinux is enabled.
+Enable the SELinux relabeling process on the next system boot:
+# touch /.autorelabel
+
+then exit & reboot the system.
+Done
