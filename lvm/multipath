@@ -33,3 +33,21 @@ THEN copy the same file to /etc/
 
 N.B.: to get /etc/multipath/bindings
 NOTE: this file is automatically maintained by the multipath program.
+
+
+[root@wbcrmdb1 ~]# cat /var/lib/multipath/bindings
+
+ ****Found duplicate PV' warnings when using LVM with multipath storage in RHEL****
+# vi /etc/lvm/lvm.conf
+# This configuration option has an automatic default value.
+# filter = [ "a|.*/|" ]
+>>> add/replace filter line here
+filter =  [ "a|/dev/sda[1-9]|", "a|/dev/mapper/mpath|", "r|.*|" ]
+
+# This configuration option has an automatic default value.
+# global_filter = [ "a|.*/|" ]
+>>> add/replace global_filter line here
+global_filter =  [ "a|/dev/sda[1-9]|", "a|/dev/mapper/mpath|", "r|.*|" ]
+
+To test the change on the fly :
+# lvs --config 'devices{ filter =  [ "a|/dev/sda[1-9]|", "a|/dev/mapper/mpath|", "r|.*|" ] global_filter =  [ "a|/dev/sda[1-9]|", "a|/dev/mapper/mpath|", "r|.*|" ] }'
