@@ -1,7 +1,7 @@
 If required, install san driver rpm .  WWN number checking requied.
 multipath -ll
 pvscan
-vgimport sik_mdas_db /dev/sdb
-vgchange -ay sik_mdas_db
+vgimport vgname /dev/sdb
+vgchange -ay vgname
 vim /etc/fstab
 df -Th
