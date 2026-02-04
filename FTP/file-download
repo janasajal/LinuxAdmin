@@ -1,0 +1,42 @@
+[erpuser@wbsedclpaymentbankpayment ~]$ cat /paymentbank_BANK/sftpdownload.sh
+#!/bin/bash
+
+# SFTP server details
+SFTP_HOST="sfg.paymentbank"
+SFTP_USER="CMP_WBSEDCL_12454"
+PASSWORD_FILE="sftp_password.txt"
+REMOTE_DIR="RESPONSE/"
+LOCAL_DIR="/paymentbank_BANK/paymentbank-fileupload/inbox"
+
+# Log file for downloaded files
+LOG_DIR="/paymentbank_BANK/log"  # Directory for log files
+LOG_FILE="$LOG_DIR/sftp_download_script_$(date +%Y%m%d).log"
+
+# Read password from file
+SFTP_PASSWORD=$(<"$PASSWORD_FILE")
+
+# Ensure the local directory exists
+mkdir -p "$LOCAL_DIR"
+
+# Create a log entry for the start of the download
+echo "Download started at $(date)" >> "$LOG_FILE"
+
+# Download files using sshpass to avoid password prompt
+sshpass -p "$SFTP_PASSWORD" sftp -oport=2201 -oBatchMode=no -b - "$SFTP_USER@$SFTP_HOST" <<EOF
+cd $REMOTE_DIR
+lcd $LOCAL_DIR
+mget *.txt
+bye
+EOF
+
+# Check if the download was successful
+if [ $? -eq 0 ]; then
+    echo "Files successfully downloaded at $(date)" >> "$LOG_FILE"
+else
+    echo "Error occurred during download at $(date)" >> "$LOG_FILE"
+fi
+
+# Display a message indicating that the download process is complete
+echo "Download complete!"
+
+[erpuser@wbsedclpaymentbankpayment ~]$
