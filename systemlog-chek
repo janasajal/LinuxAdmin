@@ -1,0 +1,41 @@
+1070585@wbpodbpr ~]$ last reboot
+reboot   system boot  2.6.32-431.el6.x Fri Sep 27 01:38 - 10:30  (08:52)
+###
+Check which log files were updated recently.
+# cd /var/log
+# ls -ltr
+
+Boot time kernel messages:
+# less /var/log/dmesg
+
+The latest kernel messages:
+# dmesg|tail
+
+#grep -v 'ARG' /var/log/messages  ... to remove irrelevant entries
+
+To check why system getting restart
+# cat /var/log/messages | grep logger
+
+$ cat /etc/logrotate.conf .. to see logrotate schedule.
+
+## grep logs between two timestamps
+
+grep "Jun 18 11:[30-59]" /var/log/messages
+
+#/var/log/sa
+sar -q -f sa21
+
+show listing of last logged in users
+#last - 
+#lastb - bad login request
+
+Print all CPU statistics for today:
+# sar -P ALL
+Select all network statistics from file sa13:
+
+# sar -n ALL -f /var/log/sa/sa13
+Select all Memory statistics between 10AM and 2 PM from file sa07 and output to file mem.txt
+
+# sar -r -s 10:00:00 -e 14:00:00 -f /var/log/sa/sa07 -o /tmp/mem.txt
+
+# sar -q, since it is also used in calculating load average.
