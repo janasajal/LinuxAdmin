@@ -1,0 +1,22 @@
+[root@testserver ~]# cat ping.sh
+#!/bin/bash
+
+        FILE=pingreport.txt
+        TARGET=10.251.xx.xx
+
+          touch $FILE
+          while true;
+          do
+            DATE=$(date '+%d/%m/%Y %H:%M:%S')
+            ping -c 1 $TARGET &> /dev/null
+            if [[ $? -ne 0 ]]; then
+              echo "ERROR "$DATE
+              echo $DATE filure >> $FILE
+            else
+              echo "OK "$DATE
+              echo $DATE Success >> $FILE
+            fi
+              sleep 5
+          done
+[root@testserver ~]#
+# nohup sh ping.sh &
