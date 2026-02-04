@@ -1,0 +1,119 @@
+Step 1: Verify whether Java already exists in Server
+$ java -version
+If not installed
+$ sudo yum install java-1.8.0-openjdk
+or # dnf install java-25-openjdk.x86_64
+$ sudo yum install java-1.8.0-openjdk-devel
+List the Java Installation directory.
+$ ls /usr/lib/jvm
+
+Step 2: Setting up Environment variable paths
+$ export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.191.b12-0.el7_5.x86_64
+For setting it by default for every user on the system:
+$ sudo sh -c "echo export JAVA_HOME==/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.191.b12-0.el7_5.x86_64 >> /etc/environment"
+$ export JRE_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.191.b12-0.el7_5.x86_64/jre
+For the PATH variable:
+$ export PATH=$PATH:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.191.b12-0.el7_5.x86_64/bin:/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.191.b12-0.el7_5.x86_64/jre/bin
+_________________________
+***Download tomcat***
+curl -o tomcat.tar.gz https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.113/bin/apache-tomcat-9.0.113.tar.gz
+
+===== Environt variable set in RHEL10 for tomcat ===
+# cd /tomcat/apache-tomcat-9.0.113/bin
+
+create setenv.sh
+# cat setenv.sh
+#!/bin/bash
+# Set Java environment for Tomcat
+export JAVA_HOME=/usr/lib/jvm/java-25-openjdk
+export JRE_HOME=$JAVA_HOME
+
+Restart tomcat**
+./shutdown.sh
+./startup.sh
+__________________________
+
+# Optional: Java memory options
+export CATALINA_OPTS="-Xms512M -Xmx1024M -server -XX:+UseG1GC"
+
+Step 3: Download and extract Apache Tomcat 8.5/9
+$ cd /opt 
+$ sudo wget https://www.apache.org/dist/tomcat/tomcat-8/v8.5.35/bin/apache-tomcat-8.5.35.tar.gz
+Extracting the compressed downloaded file and listing it
+$ sudo tar xzf apache-tomcat-8.5.35.tar.gz
+Moving the extracted apache-tomcat8 directory from /opt to /usr/share/tomcat8:
+$ sudo mv apache-tomcat-8.5.35 /usr/share/tomcat8
+
+Step 4: Performing Admin Operations
+Switching to root user for performing admin operations.
+$ sudo -i
+Listing contents of tomcat8 directory in /usr/share/tomcat8:
+# ls /usr/share/tomcat8
+Changing directory to /usr/share/tomcat8/bin:
+In /usr/share/tomcat8/bin directory, you can view scripts like a startup, shutdown, Catalina etc to manage tomcat server.
+# ls /usr/share/tomcat8/bin
+
+Step 5: Starting Tomcat server
+You can start the tomcat server by executing the  startup.sh  script.
+# cd /usr/share/tomcat8/bin/
+# ./startup.sh
+or
+# /usr/share/tomcat8/bin/startup.sh
+
+Step 6: Accessing Web GUI
+After successfully starting the tomcat web server, you can access the web GUI by.
+http://<your-ip-address>:8080
+For example in my case.
+http://192.168.10.10:8080
+
+Step 8: Shutting down the Tomcat Server.
+Simply use the below command, to shut down the tomcat server, Navigate to script location and run with
+# ./shutdown.sh
+       Or
+# /usr/share/tomcat8/bin/shutdown.sh
+
++++++Additional ****
+_____________
+Step 7: Deploying the sample webpage in tomcat
+You can test deploy a webpage, by building your own project .war file or by downloading a sample war file.
+In the following, 
+
+copy the sample.war file into /usr/share/tomcat8/webapps directory.
+
+Accessing the sample webpage, To view the required webpage, Navigate to
+
+http://<your-ip-address>:8080/sample
+For example in my case:
+http://192.168.10.10:8080/sample
+
+N.B.: to access this website using http://192.168.10.10:8080
+
+mv ROOT ROOT.bkp
+  542  mv RBIApp.war ROOT.war
+**
+[root@eppoc bin]# cat /etc/environment
+export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.262.b10-1.el7.x86_64
+export JRE_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.262.b10-1.el7.x86_64/jre
+[root@eppoc bin]#
+
+
+to modify apache httpd.conf file use include syntex 
+like : 
+<VirtualHost 68.178.164.255:80>
+  ServerName tsecl.in
+Include "/etc/apache2/conf.d/userdata/std/2_4/tsecladmin/tsecl.in/virutalhost1.conf"
+
+###cat virutalhost1.conf
+Redirect permanent / https://www.tsecl.in/index.html#/
+
+###Change Tomcat’s port###
+vim /tomcat/apache-tomcat-9.0.113/conf/server.xml
+
+--
+###connector port change from 8080 to 8081####
+    <Connector port="8081" protocol="HTTP/1.1"
+               connectionTimeout="20000"
+               redirectPort="8443"
+               maxParameterCount="1000"
+
+
