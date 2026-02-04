@@ -1,0 +1,36 @@
+To do proxy IP set please follow below setps.
+** to check the any existing proxy address
+# echo $http_proxy
+# echo $https_proxy
+
+if no proxy address is set then use below command.
+
+export https_proxy="http://10.251.xx.xx:8080"
+export http_proxy="http://10.251.xx.xx:8080"
+export ftp_proxy="http://10.251.xx.xx:8080"
+
+to make it parmanent 
+# vi /etc/environment
+https_proxy="http://10.251.xx.xx:8080"
+http_proxy="http://10.251.xx.xx:8080"
+ftp_proxy="http://10.251.xx.xx:8080"
+
+to check the set proxy 
+# echo $http_proxy
+# echo $https_proxy
+
+Configuring proxy for processes with SHELL
+
+echo "export https_proxy=http://10.251.xx.xx:8080/" > /etc/profile.d/https_proxy.sh
+echo "export http_proxy=http://10.251.xx.xx:8080/" > /etc/profile.d/http_proxy.sh
+
+#for RHEL 9 & 10....
+cat <<EOF > /etc/profile.d/proxy.sh
+export http_proxy=http://172.18.200.5:8090
+export https_proxy=http://172.18.200.5:8090
+export HTTP_PROXY=http://172.18.200.5:8090
+export HTTPS_PROXY=http://172.18.200.5:8090
+EOF
+
+reload the session
+source /etc/profile.d/proxy.sh
