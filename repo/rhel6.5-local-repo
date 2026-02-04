@@ -1,0 +1,28 @@
+yum linux 6.5
+cp -avr disk to a file
+cd /Packages/
+[root@server Packages]# rpm -ivh vsftpd-2.2.2-11.el6_3.1.i686.rpm
+##[root@server Packages]# rpm -ivh libxml2-python-2.7.6-8.el6_3.4.i686.rpm warning: 
+[root@server Packages]# rpm -ivh deltarpm-3.5-0.5.20090913git.el6.i686.rpm 
+[root@server Packages]# rpm -ivh python-deltarpm-3.5-0.5.20090913git.el6.i686.rpm
+
+Now install “createrepo” package:
+
+
+[root@server Packages]# rpm -ivh createrepo-0.9.9-17.el6.noarch.rpm
+
+[root@server ~]# vi /etc/yum.repos.d/localrepo.repo
+[localrepo]
+name=Unixmen Repository
+baseurl=file:///var/ftp/pub/localrepo ##please don't use / afetr localrepo
+gpgcheck=0
+enabled=1
+
+createrepo -v /var/ftp/pub/localrepo/
+
+After creating repository, disable or rename the existing repositories.
+
+Now update the repository files:
+
+[root@server ~]# yum clean all
+[root@server ~]# yum update
