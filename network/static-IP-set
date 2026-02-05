@@ -1,0 +1,34 @@
+Static IP set
+[root@k8s-master ~]# nmcli connection modify -h
+Usage: nmcli connection modify { ARGUMENTS | help }
+
+ARGUMENTS := [id | uuid | path] <ID> ([+|-]<setting>.<property> <value>)+
+
+Modify one or more properties of the connection profile.
+The profile is identified by its name, UUID or D-Bus path. For multi-valued
+properties you can use optional '+' or '-' prefix to the property name.
+The '+' sign allows appending items instead of overwriting the whole value.
+The '-' sign allows removing selected items instead of the whole value.
+
+ARGUMENTS := remove <setting>
+
+Remove a setting from the connection profile.
+
+Examples:
+nmcli con mod home-wifi wifi.ssid rakosnicek
+nmcli con mod em1-1 ipv4.method manual ipv4.addr "192.168.1.2/24, 10.10.1.5/8"
+nmcli con mod em1-1 +ipv4.dns 8.8.4.4
+nmcli con mod em1-1 -ipv4.dns 1
+nmcli con mod em1-1 -ipv6.addr "abbe::cafe/56"
+nmcli con mod bond0 +bond.options mii=500
+nmcli con mod bond0 -bond.options downdelay
+nmcli con mod em1-1 remove sriov
+
+[root@k8s-master ~]#
+
+[root@k8s-master ~]# nmcli connection modify 'eth0' ipv4.method manual ipv4.addr "10.251.16.175/24"
+[root@k8s-master ~]# nmcli connection modify eth0 ipv4.dns 10.251.33.80 ## to add more dns use +ipv4.dns
+[root@k8s-master ~]# nmcli connection modify 'eth0' ipv4.gateway "10.251.33.1"
+
+
+
