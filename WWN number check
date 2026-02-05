@@ -1,0 +1,10 @@
+[[root@secpay2 ~]# more /sys/class/fc_host/host?/port_name
+::::::::::::::
+/sys/class/fc_host/host6/port_name
+::::::::::::::
+0x100000051efafdd3
+::::::::::::::
+/sys/class/fc_host/host7/port_name
+::::::::::::::
+0x100000051efafef9
+[root@secpay2 ~]#
