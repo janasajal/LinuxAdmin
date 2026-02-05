@@ -1,0 +1,63 @@
+#yum whatprovides xclock
+
+What Is Currently Installed?
+# yum list installed
+# cat /var/log/yum.log
+# rpm -qa --last
+2. How to install  specific software package using rpm command on Redhat Linux ?
+Answer: rpm –ivh package_name 
+
+3. How to remove the software package from on Redhat  Linux ?
+Answer: rpm -ev package_name
+
+4.How to upgrade the existing Redhat package using rpm command ?
+Answer: rpm -Uvh package_name
+
+How to remove the package using yum ?
+Answer:yum remove package_name
+
+
+How to check the updates for yum repository ?
+Answer:yum check-update
+
+You have installed a package (say httpd) and now you want to see all the files and directories installed and created by the above package. What will you do?
+# rpm -ql httpd
+
+/etc/httpd
+/etc/httpd/conf
+
+
+Install a package: rpm -ivh package.rpm
+
+Install a package: yum install package
+
+Update a package: rpm -Uvh package.rpm
+
+Update a package: yum update package
+
+Remove a package: rpm -e package
+
+Remove a package: yum remove package
+########
+To revert a update 
+.....................
+[root@fmc ~]# yum history
+Loaded plugins: langpacks, product-id, search-disabled-repos, subscription-manager
+This system is not registered to Red Hat Subscription Management. You can use subscription-manager to register.
+ID     | Login user               | Date and time    | Action(s)      | Altered
+-------------------------------------------------------------------------------
+     3 | root <root>              | 2024-10-25 21:51 | I, U           |   73 EE
+     2 | root <root>              | 2024-10-25 21:47 | Install        |    4
+     1 | System <unset>           | 2024-10-24 22:19 | Install        | 1239
+history list
+to remove the rpm with dependency, please use.
+[root@fmc ~]# yum history undo 3
+
+08.05.2025****
+Download the packages and dependencies
+mkdir -p ~/ha-packages
+cd ~/ha-packages
+# yumdownloader --resolve --destdir=. pcs pacemaker corosync
+on destination server 
+# cd /tmp/ha-packages
+# sudo yum localinstall -y *.rpm
