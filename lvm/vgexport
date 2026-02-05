@@ -1,0 +1,27 @@
+SOURCE SYSTEM
+
+#umount /testlv/
+#vgchange -an testvg
+#vgexport testvg
+#pvscan
+
+remove the corresponding hard-disk from system
+
+DESTINATION SYSTEM
+Add the remove disk to this system
+
+#fdisk -l
+#echo "- - -" > /sys/class/scsi_host/host0/scan
+#echo "- - -" > /sys/class/scsi_host/host1/scan
+#echo "- - -" > /sys/class/scsi_host/host2/scan
+#fdisk -l
+#vgimport testvg /dev/sdb
+#vgchange -ay testvg
+#mkdir /testlv
+#mount /dev/testvg/testlv /testlv/
+
+fstab entry
+
+VGEXPORT in Vmware
+to confirm the associated pv with vg
+run pvs  ( it will show in assecnding order and associated vg name) and vm "edit virtual machine settings" hard disks number will match with pvs output.
