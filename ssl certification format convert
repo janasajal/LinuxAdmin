@@ -1,0 +1,12 @@
+yum install openssl
+
+
+Important Note: pem file is key file  need save the .pem file it with .key extension
+
+
+# openssl pkcs12 -export -in certificate.crt -inkey privatekey.key -out certificate.pfx
+# openssl pkcs12 -export -in wbsedcl.cer -inkey wbsedcl.key -out wbsedcl.pfx
+
+openssl pkcs12 -export -in certificate.crt -inkey privatekey.key -out certificate.pfx
+
+openssl pkcs12 -export -in wbsedcl.cer -inkey wbsedcl.key -out certificate.p12
