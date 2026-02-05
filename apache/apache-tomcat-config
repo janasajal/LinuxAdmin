@@ -3,6 +3,7 @@ $ java -version
 If not installed
 $ sudo yum install java-1.8.0-openjdk
 or # dnf install java-25-openjdk.x86_64
+
 $ sudo yum install java-1.8.0-openjdk-devel
 List the Java Installation directory.
 $ ls /usr/lib/jvm
@@ -115,5 +116,6 @@ vim /tomcat/apache-tomcat-9.0.113/conf/server.xml
                connectionTimeout="20000"
                redirectPort="8443"
                maxParameterCount="1000"
+
 
 
