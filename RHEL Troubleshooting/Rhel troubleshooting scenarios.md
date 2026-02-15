@@ -1288,13 +1288,6 @@ hdparm -tT /dev/sda
 
 ---
 
-## Contributing
-
-Feel free to contribute additional scenarios or improvements to existing ones. Create a pull request or open an issue.
-
-## License
-
-This document is provided as-is for educational purposes.
 
 ## Author
 
