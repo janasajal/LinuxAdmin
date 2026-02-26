@@ -1,9 +1,9 @@
-[erpuser@wbsedclpaymentbankpayment ~]$ cat /paymentbank_BANK/sftpdownload.sh
+[erpuser@mycompanypaymentbankpayment ~]$ cat /paymentbank_BANK/sftpdownload.sh
 #!/bin/bash
 
 # SFTP server details
 SFTP_HOST="sfg.paymentbank"
-SFTP_USER="CMP_WBSEDCL_12454"
+SFTP_USER="CMP_mycompany_12454"
 PASSWORD_FILE="sftp_password.txt"
 REMOTE_DIR="RESPONSE/"
 LOCAL_DIR="/paymentbank_BANK/paymentbank-fileupload/inbox"
@@ -39,4 +39,4 @@ fi
 # Display a message indicating that the download process is complete
 echo "Download complete!"
 
-[erpuser@wbsedclpaymentbankpayment ~]$
+[erpuser@mycompanypaymentbankpayment ~]$
