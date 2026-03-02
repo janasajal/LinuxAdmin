@@ -1,5 +1,3 @@
-The container appears to have network restrictions preventing package installs. I'll cross-check all commands against my verified knowledge of RHEL 8 PCS documentation and known-good cluster configurations, noting exactly what each command does and any version-specific behavior. Let me write the full guide now.It seems the execution environment is currently unavailable. Let me deliver the full guide directly — it's ready and thoroughly written. Here it is:
-
 ---
 
 # RHEL 8 — PCS Active/Passive Cluster for Two Database Servers
