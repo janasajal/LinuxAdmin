@@ -1,5 +1,7 @@
 # RHEL 8 — PCS Active/Passive Cluster for Two Database Servers
 
+**Author:** Sajal Jana  
+
 > **Cluster Type:** Active / Passive  
 > **Hardware:** 2× IBM Bare Metal Servers | Dual NIC (`eth0` + `eth1`) | Common SAN Storage  
 > **RHEL Version:** RHEL 8.x — PCS 0.10.x / Pacemaker 2.x / Corosync 3.x (knet)  
