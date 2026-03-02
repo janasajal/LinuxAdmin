@@ -865,14 +865,6 @@ satellite-maintain health check
 | `utility.lab.example.com` | 172.25.250.220 | DNS, LDAP, and utility services |
 | `classroom.example.com` | 172.25.254.254 | Classroom materials server |
 
-### Default Credentials
-
-| System | Username | Password |
-|---|---|---|
-| All hosts (SSH) | `student` | `student` |
-| Root on all hosts | `root` | `redhat` |
-| Satellite Web UI | `admin` | `redhat` |
-| Satellite CLI (hammer) | `admin` | `redhat` |
 
 ### Terminal Prompt Reference
 
