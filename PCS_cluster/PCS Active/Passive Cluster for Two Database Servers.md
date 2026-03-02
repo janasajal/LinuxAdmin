@@ -1,5 +1,3 @@
----
-
 # RHEL 8 — PCS Active/Passive Cluster for Two Database Servers
 
 > **Cluster Type:** Active / Passive | **Hardware:** 2× IBM Bare Metal | Dual NIC (eth0 + eth1) | SAN + Multipath | IBM IMM Fencing
