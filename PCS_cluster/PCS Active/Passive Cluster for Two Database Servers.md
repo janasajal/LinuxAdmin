@@ -1,60 +1,118 @@
 # RHEL 8 — PCS Active/Passive Cluster for Two Database Servers
 
-> **Cluster Type:** Active / Passive | **Hardware:** 2× IBM Bare Metal | Dual NIC (eth0 + eth1) | SAN + Multipath | IBM IMM Fencing
-> **RHEL:** 8.x | PCS 0.10.x | Pacemaker 2.x | Corosync 3.x (knet transport)
+> **Cluster Type:** Active / Passive  
+> **Hardware:** 2× IBM Bare Metal Servers | Dual NIC (`eth0` + `eth1`) | Common SAN Storage  
+> **RHEL Version:** RHEL 8.x — PCS 0.10.x / Pacemaker 2.x / Corosync 3.x (knet)  
+> **Last Updated:** 2026-03  
 
 ---
 
-## Environment & IP Plan
+## Table of Contents
 
-| Role | Hostname | eth0 (Primary) | eth1 (Heartbeat) |
-|------|----------|----------------|-----------------|
+1. [Environment and IP Plan](#1-environment-and-ip-plan)
+2. [Architecture Overview](#2-architecture-overview)
+3. [Step 1 — NIC Configuration (eth0 Primary + eth1 Heartbeat)](#step-1--nic-configuration-eth0-primary--eth1-heartbeat)
+4. [Step 2 — Hostname and /etc/hosts](#step-2--hostname-and-etchosts)
+5. [Step 3 — OS Preparation and Subscription](#step-3--os-preparation-and-subscription)
+6. [Step 4 — Time Sync with Chrony](#step-4--time-sync-with-chrony)
+7. [Step 5 — SAN Multipath Configuration](#step-5--san-multipath-configuration)
+8. [Step 6 — LVM on Shared SAN](#step-6--lvm-on-shared-san)
+9. [Step 7 — Install Cluster Packages](#step-7--install-cluster-packages)
+10. [Step 8 — Configure Firewall](#step-8--configure-firewall)
+11. [Step 9 — Set hacluster Password](#step-9--set-hacluster-password)
+12. [Step 10 — Authenticate Nodes and Bootstrap Cluster](#step-10--authenticate-nodes-and-bootstrap-cluster)
+13. [Step 11 — Configure Corosync Dual-Link (knet)](#step-11--configure-corosync-dual-link-knet)
+14. [Step 12 — Configure STONITH via IBM IMM](#step-12--configure-stonith--ibm-imm-via-ipmi)
+15. [Step 13 — Create Cluster Resources](#step-13--create-cluster-resources)
+16. [Step 14 — Verify and Test Failover](#step-14--verify-and-test-failover)
+17. [Cluster Admin Cheat Sheet](#cluster-admin-cheat-sheet)
+18. [Troubleshooting](#troubleshooting)
+
+---
+
+## 1. Environment and IP Plan
+
+### Node Details
+
+| Role | Hostname | eth0 — Primary / Client | eth1 — Heartbeat / Corosync |
+|------|----------|-------------------------|-----------------------------|
 | Node 1 — Active | `db-node1` | `10.240.70.10/24` | `10.240.71.10/24` |
 | Node 2 — Passive | `db-node2` | `10.240.70.11/24` | `10.240.71.11/24` |
-| Cluster VIP | `db-cluster` | `10.240.70.20/24` | — |
-| Gateway | — | `10.240.70.1` | — |
-| db-node1 IBM IMM | — | `10.248.30.10` | — |
-| db-node2 IBM IMM | — | `10.248.30.11` | — |
-| SAN multipath device | `/dev/mapper/mpatha` | VG: `db_vg` | Mount: `/data/db` |
+| Cluster VIP (floats) | `db-cluster` | `10.240.70.20/24` | — |
+| Default Gateway | — | `10.240.70.1` | — |
+
+### IBM IMM (Integrated Management Module)
+
+| Node | IBM IMM IP |
+|------|------------|
+| db-node1 IMM | `10.248.30.10` |
+| db-node2 IMM | `10.248.30.11` |
+
+### Storage
+
+| Item | Value |
+|------|-------|
+| Multipath device | `/dev/mapper/mpatha` |
+| Volume Group | `db_vg` |
+| Logical Volume | `db_lv` |
+| Mount Point | `/data/db` |
+| Filesystem | `XFS` |
 
 ---
 
-## Architecture
-
+## 2. Architecture Overview
 ```
-  DB Clients ──▶ VIP: 10.240.70.20 (floats to active node)
-                        │
-         ┌──────────────┴──────────────┐
-         │                             │
-  db-node1 [ACTIVE]          db-node2 [PASSIVE]
-  eth0: 10.240.70.10          eth0: 10.240.70.11
-  eth1: 10.240.71.10 ◄──────▶ eth1: 10.240.71.11
-        (corosync)                (corosync)
-  IMM: 10.248.30.10           IMM: 10.248.30.11
-         │                             │
-         └──────────┬──────────────────┘
-               Shared SAN
-          /dev/mapper/mpatha
-          VG: db_vg / LV: db_lv
-          Mount: /data/db (XFS)
+                   +------------------------------------------+
+  DB Clients ----> |   Virtual IP (VIP): 10.240.70.20         |
+                   +-------------------+----------------------+
+                                       | Active node holds VIP
+              +------------------------+------------------------+
+              |                                                 |
+   +----------+-----------+               +-----------+--------+------+
+   |  db-node1  [ACTIVE]  |               |  db-node2  [PASSIVE]     |
+   |  eth0: 10.240.70.10  |               |  eth0: 10.240.70.11      |
+   |  eth1: 10.240.71.10  |<--corosync--> |  eth1: 10.240.71.11      |
+   |                      |  (heartbeat)  |                          |
+   |  IMM: 10.248.30.10   |               |  IMM: 10.248.30.11       |
+   +----------+-----------+               +----------+---------------+
+              |                                      |
+              +-------------------+------------------+
+                                  | Shared SAN (FC / iSCSI)
+                         +--------+-----------+
+                         | /dev/mapper/mpatha  |
+                         | VG: db_vg           |
+                         | LV: db_lv  (XFS)    |
+                         | Mount: /data/db      |
+                         +--------------------+
 
-  STONITH:
+  STONITH (IBM IMM):
     db-node2 fences db-node1 via IMM 10.248.30.10
     db-node1 fences db-node2 via IMM 10.248.30.11
 ```
+
+**Active/Passive behaviour:**
+
+- All DB resources (LVM, filesystem, VIP, DB service) run on **one node only** at any time.
+- If the active node fails, Pacemaker sends a fence command to the IBM IMM of that node, confirms it is powered off, then starts all resources on the passive node.
+- Resources are grouped so they always start and stop together in the correct order and never split across nodes.
 
 ---
 
 ## Step 1 — NIC Configuration (eth0 Primary + eth1 Heartbeat)
 
-> **What it does:** Assigns static IPs to both NICs via `nmcli`. `eth0` carries client traffic and the floating VIP. `eth1` carries corosync heartbeat traffic only. A dedicated heartbeat NIC means a saturated client network cannot trigger false failover. `eth1` must never be the default route.
+> **What it does:** Assigns static IPs to both NICs via `nmcli` (NetworkManager CLI).
+> `eth0` carries client/production traffic and will hold the floating VIP.
+> `eth1` carries corosync heartbeat traffic only — keeping these on separate NICs
+> means a congested or failed client network cannot trigger a false failover.
+> `eth1` must **never** become the default route.
 
 ### On db-node1
-
 ```bash
-# eth0 — Primary NIC
-# ipv4.method manual = static IP
-# ipv4.gateway = set ONLY on eth0, never on eth1
+# --- eth0: Primary NIC ---
+# ipv4.method manual   = static IP (disable DHCP)
+# ipv4.gateway         = set ONLY on eth0, never on eth1
+# connection.autoconnect yes = persist after reboot
+
 nmcli connection modify eth0 \
   ipv4.method manual \
   ipv4.addresses 10.240.70.10/24 \
@@ -62,9 +120,10 @@ nmcli connection modify eth0 \
   ipv4.dns "8.8.8.8 8.8.4.4" \
   connection.autoconnect yes
 
-# eth1 — Heartbeat/Corosync NIC
-# ipv4.gateway "" = no default route via eth1
-# ipv4.never-default yes = NetworkManager never sets eth1 as default route
+# --- eth1: Heartbeat/Corosync NIC ---
+# ipv4.gateway ""         = intentionally blank — no default route via eth1
+# ipv4.never-default yes  = NetworkManager never sets eth1 as default route
+
 nmcli connection modify eth1 \
   ipv4.method manual \
   ipv4.addresses 10.240.71.10/24 \
@@ -73,18 +132,20 @@ nmcli connection modify eth1 \
   ipv4.never-default yes \
   connection.autoconnect yes
 
+# Apply both interfaces
 nmcli connection up eth0
 nmcli connection up eth1
 
-# Verify
+# Verify IPs
 ip addr show eth0
 ip addr show eth1
+
+# Confirm only eth0 is the default route
 ip route show
-# Expected: default via 10.240.70.1 dev eth0 ... (no default via eth1)
+# Expected: default via 10.240.70.1 dev eth0 ...  (no default via eth1)
 ```
 
 ### On db-node2
-
 ```bash
 nmcli connection modify eth0 \
   ipv4.method manual \
@@ -109,24 +170,28 @@ ip addr show eth1
 ip route show
 ```
 
-> **Pitfall:** If `nmcli connection modify eth0` returns "Error: unknown connection", the profile name differs from device name. Run `nmcli connection show` to list profiles and use the exact name shown.
+> **Pitfall:** If `nmcli connection modify eth0` returns *"Error: unknown connection"*, the
+> NetworkManager profile name differs from the device name. Run `nmcli connection show` to
+> list all profiles and use the exact name shown (e.g. `"Wired connection 1"`).
 
 ---
 
-## Step 2 — Hostname & /etc/hosts
+## Step 2 — Hostname and /etc/hosts
 
-> **What it does:** Cluster tools resolve nodes by short hostname internally. `/etc/hosts` ensures resolution works even if DNS is down.
-
+> **What it does:** Cluster daemons (pcs, corosync, pacemaker) communicate by short hostname.
+> `/etc/hosts` ensures resolution works even if DNS is unavailable — this is a hard
+> requirement for cluster stability.
 ```bash
 # On db-node1:
 hostnamectl set-hostname db-node1
+hostname   # verify: db-node1
 
 # On db-node2:
 hostnamectl set-hostname db-node2
+hostname   # verify: db-node2
 ```
 
-**On BOTH nodes — append to /etc/hosts:**
-
+**On BOTH nodes — append cluster entries to /etc/hosts:**
 ```bash
 cat >> /etc/hosts << 'EOF'
 
@@ -146,7 +211,7 @@ cat >> /etc/hosts << 'EOF'
 10.248.30.11  db-node2-imm
 EOF
 
-# Verify all entries resolve
+# Verify resolution
 ping -c 2 db-node1
 ping -c 2 db-node2
 ping -c 2 db-node1-hb
@@ -155,17 +220,21 @@ ping -c 2 db-node2-hb
 
 ---
 
-## Step 3 — OS Preparation & Subscription
+## Step 3 — OS Preparation and Subscription
 
-> **What it does:** Attaches a subscription with the HA Add-On, enables the HA repo, and updates all packages. Mandatory on both nodes.
-
+> **What it does:** Registers the system, attaches a subscription that includes the
+> High Availability Add-On, enables the HA and Resilient Storage repos, and performs
+> a full package update. Required on both nodes before installing cluster packages.
 ```bash
 # Run on BOTH nodes
 
+# Register with Red Hat CDN
 subscription-manager register --username <RH_USER> --password <RH_PASS>
+
+# Auto-attach the best available subscription
 subscription-manager attach --auto
 
-# Verify HA repo is accessible
+# Confirm the HA repo is available
 subscription-manager repos --list | grep -i high-availability
 
 # Enable HA and Resilient Storage repos
@@ -173,11 +242,12 @@ subscription-manager repos \
   --enable=rhel-8-for-x86_64-highavailability-rpms \
   --enable=rhel-8-for-x86_64-resilientstorage-rpms
 
+# Full package update
 dnf update -y
 
-# Confirm SELinux is enforcing
+# Verify SELinux is enforcing (cluster packages are SELinux-aware)
 getenforce
-# If not enforcing:
+# If output is Permissive or Disabled:
 sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config
 setenforce 1
 ```
@@ -186,21 +256,23 @@ setenforce 1
 
 ## Step 4 — Time Sync with Chrony
 
-> **What it does:** Corosync uses timestamps in its messaging protocol. A clock skew greater than ~1 second between nodes causes authentication errors or spurious fencing events. Chrony is the standard NTP client on RHEL 8.
-
+> **What it does:** Corosync uses timestamps in its messaging protocol. A clock skew
+> greater than ~1 second between nodes can cause authentication errors or spurious
+> STONITH events. Chrony is the standard NTP client on RHEL 8 and must be running
+> and synced on all cluster nodes.
 ```bash
 # Run on BOTH nodes
 
 dnf install -y chrony
 systemctl enable --now chronyd
 
-# Force immediate sync
+# Force an immediate clock adjustment
 chronyc makestep
 
 # Verify — look for "System clock synchronized: yes"
 timedatectl status
 
-# Check source detail — active source has * prefix
+# Check active source — the line starting with * is the active time source
 chronyc sources -v
 ```
 
@@ -208,23 +280,27 @@ chronyc sources -v
 
 ## Step 5 — SAN Multipath Configuration
 
-> **What it does:** `device-mapper-multipath` combines multiple physical FC/iSCSI paths to the SAN LUN into one logical device (`/dev/mapper/mpatha`). If one HBA or SAN switch fails, I/O continues on the other path. IBM Storwize/FlashSystem uses product string `2145`; DS8000 uses `2107`. Adjust `product` for your array model.
+> **What it does:** `device-mapper-multipath` combines multiple physical FC/iSCSI paths
+> to the SAN LUN into a single logical device (`/dev/mapper/mpatha`). If one HBA or
+> SAN switch fails, I/O continues on the surviving path with no interruption.
+> IBM Storwize / FlashSystem arrays use product string `2145`.
+> IBM DS8000 series uses `2107`. Adjust the `product` field for your array model.
 
 ### 5a — Install and Enable multipath
-
 ```bash
 # Run on BOTH nodes
+
 dnf install -y device-mapper-multipath
 
-# mpathconf generates /etc/multipath.conf and enables multipathd
+# mpathconf generates /etc/multipath.conf and enables the service
 mpathconf --enable --with_multipathd y
 
 systemctl enable --now multipathd
 systemctl status multipathd
+# Expected: Active: active (running)
 ```
 
 ### 5b — Configure /etc/multipath.conf for IBM Storage
-
 ```bash
 # Run on BOTH nodes — config must be IDENTICAL on all nodes
 
@@ -240,6 +316,7 @@ defaults {
 }
 
 blacklist {
+    # Prevent multipath from managing the local OS disk
     devnode "^sda$"
     devnode "^(ram|raw|loop|fd|md|dm-|sr|scd|st)[0-9]*"
 }
@@ -261,16 +338,17 @@ devices {
 }
 EOF
 
+# Restart multipathd to apply new config
 systemctl restart multipathd
 
-# Rescan SCSI bus to discover SAN LUN
+# Rescan all SCSI hosts to discover the SAN LUN
 for host in /sys/class/scsi_host/host*; do echo "- - -" > ${host}/scan; done
 sleep 3
 
-# Verify multipath topology
+# Show multipath topology
 multipath -ll
 
-# Confirm device node
+# Confirm device node exists
 ls -lh /dev/mapper/mpatha
 ```
 
@@ -283,67 +361,86 @@ size=500G features='1 queue_if_no_path' hwhandler='0' wp=rw
    |- 2:0:0:1 sdc 8:32 active ready running
 ```
 
-> If `multipath -ll` shows nothing: the LUN is not zoned/masked to this server. Confirm with your SAN admin that both HBA WWPNs are in the fabric zone.
+> If `multipath -ll` shows nothing: the LUN has not been zoned/masked to this server.
+> Confirm with your SAN admin that both HBA WWPNs are in the fabric zone, then rescan again.
 
 ---
 
 ## Step 6 — LVM on Shared SAN
 
-> **What it does:** Creates a VG and LV on the shared SAN. LVM is configured to prevent auto-activation at boot, which would cause both nodes to mount the filesystem simultaneously and corrupt data. Pacemaker exclusively controls VG activation via the `LVM-activate` resource agent.
+> **What it does:** Creates a VG and LV on the shared SAN device. LVM must be configured
+> to prevent auto-activation at boot on both nodes simultaneously — that would result in
+> dual-active mounts and filesystem corruption. Pacemaker exclusively controls when the
+> VG activates via the `LVM-activate` resource agent.
 
-### 6a — Create PV / VG / LV (db-node1 only — first time)
-
+### 6a — Create PV / VG / LV (db-node1 only — first-time setup)
 ```bash
 # Run on db-node1 ONLY
 
+# Create Physical Volume on the multipath device
 pvcreate /dev/mapper/mpatha
+
+# Create Volume Group
 vgcreate db_vg /dev/mapper/mpatha
+
+# Create Logical Volume — adjust size as required
 lvcreate -L 500G -n db_lv db_vg
+
+# Create XFS filesystem
 mkfs.xfs /dev/db_vg/db_lv
 
 # Confirm
 lvs -o lv_name,lv_size,vg_name
+# Expected: db_lv   500.00g   db_vg
 ```
 
 ### 6b — Prevent Auto-Activation at Boot (BOTH nodes)
 
+> This step is critical. Without it both nodes may activate the VG during boot
+> and mount the filesystem simultaneously, causing data corruption.
 ```bash
 # Run on BOTH nodes
 
+# Back up lvm.conf
 cp /etc/lvm/lvm.conf /etc/lvm/lvm.conf.bak
 
-# Restrict LVM boot-time activation to OS VG only (typically named 'rhel')
-# db_vg is deliberately excluded — Pacemaker activates it
-# Verify your OS VG name first:
+# Check your OS VG name (typically 'rhel' on RHEL 8)
 vgs
 
-# Add the restriction (edit /etc/lvm/lvm.conf — activation section)
+# Restrict LVM boot-time activation to the OS VG only.
+# db_vg is deliberately excluded — Pacemaker activates it exclusively.
+# If your OS VG has a different name, replace "rhel" accordingly.
+
 sed -i '/# auto_activation_volume_list/a\    auto_activation_volume_list = [ "rhel" ]' \
   /etc/lvm/lvm.conf
 
-# Rebuild initramfs to pick up the change
+# Rebuild initramfs so the change takes effect at next boot
 dracut -H -f
 ```
 
 ### 6c — Create Mount Point (BOTH nodes)
-
 ```bash
 mkdir -p /data/db
-# Do NOT add to /etc/fstab — Pacemaker manages mounting
+# Do NOT add /data/db to /etc/fstab — Pacemaker manages mounting
 ```
 
 ---
 
 ## Step 7 — Install Cluster Packages
 
-> **What it does:** Installs `pacemaker` (resource manager), `pcs` (management CLI), `corosync` (heartbeat/messaging — pulled as dependency), and `fence-agents-all` (includes `fence_ipmilan` for IBM IMM). Enables `pcsd` — the daemon that listens on TCP 2224 for pcs auth and cluster management.
-
+> **What it does:** Installs the three-layer cluster stack:
+>
+> - `corosync` — messaging and membership layer (heartbeat between nodes)
+> - `pacemaker` — resource manager (decides where resources run, handles failover)
+> - `pcs` — CLI that wraps both pacemaker and corosync; the primary admin tool
+> - `fence-agents-all` — STONITH agent collection; includes `fence_ipmilan` for IBM IMM
+> - `pcsd` — the PCS daemon listening on TCP 2224; required for `pcs auth`
 ```bash
 # Run on BOTH nodes
 
 dnf install -y pacemaker pcs fence-agents-all
 
-# Enable and start pcsd — required BEFORE running pcs auth
+# Enable and start pcsd — must be running BEFORE pcs auth
 systemctl enable --now pcsd
 
 systemctl status pcsd
@@ -354,17 +451,27 @@ systemctl status pcsd
 
 ## Step 8 — Configure Firewall
 
-> **What it does:** Opens all cluster-required ports via the predefined `high-availability` firewalld service group. Opens TCP 2224 (pcsd), TCP 3121 (pacemaker remote), UDP 5404/5405 (corosync), TCP 21064 (DLM).
-
+> **What it does:** Opens all cluster-required ports using the predefined
+> `high-availability` firewalld service group. This opens:
+>
+> - TCP 2224 — pcsd API (pcs auth and cluster management)
+> - TCP 3121 — pacemaker_remote
+> - UDP 5404 — corosync multicast
+> - UDP 5405 — corosync unicast (knet transport)
+> - TCP 21064 — DLM (Distributed Lock Manager)
 ```bash
 # Run on BOTH nodes
 
 firewall-cmd --permanent --add-service=high-availability
 
-# If eth1 is in a different firewalld zone (check with: firewall-cmd --get-active-zones)
-# add to that zone too, e.g. if eth1 is in 'internal' zone:
+# If eth1 (heartbeat) is in a different firewalld zone, add to that zone too.
+# First check which zone each NIC is in:
+firewall-cmd --get-active-zones
+
+# Example — if eth1 is in the 'internal' zone:
 # firewall-cmd --permanent --zone=internal --add-service=high-availability
 
+# Apply rules
 firewall-cmd --reload
 
 # Verify
@@ -376,48 +483,58 @@ firewall-cmd --list-services
 
 ## Step 9 — Set hacluster Password
 
-> **What it does:** The `hacluster` OS user is auto-created by pacemaker. `pcs host auth` uses this account's password to exchange session tokens between nodes. The password must be identical on all nodes.
-
+> **What it does:** The `hacluster` OS user is created automatically by the pacemaker
+> package. `pcs host auth` uses this account's password to exchange session tokens
+> between pcsd daemons. The **same password must be set on all nodes** — authentication
+> will fail if they differ.
 ```bash
-# Run on BOTH nodes — same password on both
+# Run on BOTH nodes — use the SAME password on both
 
 echo "ClusterP@ss2024!" | passwd --stdin hacluster
 
-# Verify account
+# Verify the account exists
 id hacluster
 # Expected: uid=189(hacluster) gid=189(hacluster) groups=189(hacluster),982(haclient)
 ```
 
 ---
 
-## Step 10 — Authenticate Nodes & Bootstrap Cluster
+## Step 10 — Authenticate Nodes and Bootstrap Cluster
 
-> **What it does:** `pcs host auth` exchanges authentication tokens stored in `/var/lib/pcsd/`. `pcs cluster setup` generates `corosync.conf` (single-link initially) and distributes it. Run from db-node1 only.
-
+> **What it does:** `pcs host auth` exchanges authentication tokens between the pcsd
+> daemons on each node (stored in `/var/lib/pcsd/`). After this, pcs commands can
+> target either node without re-entering credentials. `pcs cluster setup` generates
+> `corosync.conf` and pushes it to all nodes. These commands run from **db-node1 only**.
 ```bash
 # Run on db-node1 ONLY
 
-# Authenticate both nodes
+# Step 10a — Authenticate both nodes
+# -u hacluster : the OS account used for authentication
+# -p           : the password set in Step 9
+
 pcs host auth db-node1 db-node2 \
   -u hacluster \
   -p 'ClusterP@ss2024!'
 
-# Expected:
+# Expected output:
 # db-node1: Authorized
 # db-node2: Authorized
 
-# Create the cluster
-# --force clears any leftover cluster state
+# Step 10b — Create the cluster
+# This generates /etc/corosync/corosync.conf with a single-link config (eth0 only).
+# We extend it to dual-link in Step 11.
+# --force clears any leftover cluster state from previous attempts.
+
 pcs cluster setup db-cluster db-node1 db-node2 --force
 
-# Start cluster on all nodes
+# Step 10c — Start cluster on all nodes
 pcs cluster start --all
 
 # Allow ~20s for Pacemaker to elect a DC (Designated Coordinator)
 sleep 20
 pcs status
 
-# Enable cluster auto-start after reboot
+# Step 10d — Enable cluster to start automatically after reboot
 pcs cluster enable --all
 ```
 
@@ -425,19 +542,27 @@ pcs cluster enable --all
 
 ## Step 11 — Configure Corosync Dual-Link (knet)
 
-> **What it does:** The default `pcs cluster setup` config uses only eth0 (link 0). Adding link 1 (eth1) gives corosync a second independent path. If eth0 fails or is congested, corosync continues heartbeating on eth1, preventing a false failover. RHEL 8 uses corosync 3.x with `knet` transport, which supports multiple links natively.
-
+> **What it does:** By default `pcs cluster setup` configures corosync using only eth0
+> (link 0). Adding link 1 on eth1 gives corosync **two independent communication paths**.
+> If eth0 becomes congested or fails completely, corosync continues heartbeating over eth1
+> and no false failover occurs. RHEL 8 uses corosync 3.x with `knet` transport, which
+> supports multiple links natively — no transport change is needed.
 ```bash
-# Step 11a — Stop cluster to safely edit corosync.conf
+# Step 11a — Stop the cluster before editing corosync.conf
 pcs cluster stop --all
 
-# Step 11b — Back up generated config
+# Step 11b — Back up the auto-generated config
 cp /etc/corosync/corosync.conf /etc/corosync/corosync.conf.bak
 
-# Step 11c — Write dual-link corosync.conf
+# Step 11c — Write the dual-link corosync.conf
 # This file must be IDENTICAL on both nodes
 
 cat > /etc/corosync/corosync.conf << 'EOF'
+# corosync.conf — db-cluster
+# knet transport with two links:
+#   link 0 = eth0  primary     (10.240.70.x)
+#   link 1 = eth1  heartbeat   (10.240.71.x)
+
 totem {
     version:                2
     cluster_name:           db-cluster
@@ -474,6 +599,8 @@ nodelist {
 
 quorum {
     provider:       corosync_votequorum
+    # two_node: 1 allows a single surviving node to achieve quorum
+    # ONLY after STONITH has confirmed the other node is powered off
     two_node:       1
 }
 
@@ -488,29 +615,42 @@ EOF
 # Step 11d — Push identical config to db-node2
 scp /etc/corosync/corosync.conf root@db-node2:/etc/corosync/corosync.conf
 
-# Step 11e — Start cluster
+# Step 11e — Start the cluster
 pcs cluster start --all
 sleep 20
 
-# Step 11f — Verify both links are active
+# Step 11f — Verify both corosync links are active
 corosync-cfgtool -s
 
-# Expected:
-# RING ID 0  id = 10.240.70.10  status = ring 0 active with no faults
-# RING ID 1  id = 10.240.71.10  status = ring 1 active with no faults
+# Expected output:
+# Local node ID 1
+# RING ID 0
+#   id     = 10.240.70.10
+#   status = ring 0 active with no faults
+# RING ID 1
+#   id     = 10.240.71.10
+#   status = ring 1 active with no faults
 ```
 
 ---
 
 ## Step 12 — Configure STONITH — IBM IMM via IPMI
 
-> **What it does:** STONITH is mandatory in production. Without it, Pacemaker will not start resources after a node failure because it cannot confirm the failed node is not still writing to shared storage. IBM IMM exposes IPMI over LAN; `fence_ipmilan` sends a hard power-off command directly to the baseboard management controller, bypassing the OS entirely. Each node's fence device runs on the opposite node — if db-node1 hangs, db-node2 runs the agent that powers it off.
+> **What it does:** STONITH (Shoot The Other Node In The Head) is **mandatory** in
+> production clusters. Without it Pacemaker will not start resources after a node
+> failure because it cannot confirm the failed node is not still writing to shared
+> storage. IBM IMM (Integrated Management Module) exposes IPMI over LAN;
+> `fence_ipmilan` sends a hard power-off command directly to the server's baseboard
+> management controller — bypassing the OS entirely.
+>
+> **Best practice:** Each node's fence device runs preferentially on the opposite node.
+> If db-node1 hangs, db-node2 is already running the agent that kills it.
 
-### 12a — Verify IPMI Connectivity
-
+### 12a — Verify IPMI Connectivity to IBM IMM
 ```bash
 # From db-node1 — test reach to db-node2's IMM
-# -o status = query power state only, does NOT change anything
+# -o status  = query power state only; does NOT change power state (safe test)
+# --lanplus  = required for IPMI v2.0 (all modern IBM IMM)
 
 fence_ipmilan \
   -a 10.248.30.11 \
@@ -529,16 +669,20 @@ fence_ipmilan \
   -o status
 # Expected: Status: ON
 
-# If unreachable: ping 10.248.30.10 / 10.248.30.11
-# Confirm in IBM IMM web UI: Settings > Network > IPMI over LAN = Enabled
+# If unreachable:
+#   ping 10.248.30.10 / 10.248.30.11
+#   In IBM IMM web UI: Settings > Network > IPMI over LAN = Enabled
 ```
 
 ### 12b — Create STONITH Resources
-
 ```bash
 # Run on db-node1
 
-# Fence resource for db-node1 (runs preferably on db-node2)
+# Fence resource for db-node1 — controlled from db-node2's side
+# ipaddr         = IBM IMM IP of the node being fenced
+# pcmk_host_list = hostname this fence device targets
+# power_wait     = seconds to wait after power action before checking result
+
 pcs stonith create fence-db-node1 fence_ipmilan \
   ipaddr="10.248.30.10" \
   login="ADMIN" \
@@ -548,7 +692,7 @@ pcs stonith create fence-db-node1 fence_ipmilan \
   power_wait="4" \
   op monitor interval=60s
 
-# Fence resource for db-node2 (runs preferably on db-node1)
+# Fence resource for db-node2 — controlled from db-node1's side
 pcs stonith create fence-db-node2 fence_ipmilan \
   ipaddr="10.248.30.11" \
   login="ADMIN" \
@@ -558,12 +702,13 @@ pcs stonith create fence-db-node2 fence_ipmilan \
   power_wait="4" \
   op monitor interval=60s
 
-# Location constraints — each fence agent prefers to run on the OPPOSITE node
+# Location constraints — each fence device prefers to run on the OPPOSITE node
 pcs constraint location fence-db-node1 prefers db-node2=INFINITY
 pcs constraint location fence-db-node2 prefers db-node1=INFINITY
 
-# Verify
+# Verify STONITH resources are started
 pcs stonith show
+
 # Expected:
 #  fence-db-node1  (stonith:fence_ipmilan):  Started db-node2
 #  fence-db-node2  (stonith:fence_ipmilan):  Started db-node1
@@ -573,30 +718,33 @@ pcs stonith show
 
 ## Step 13 — Create Cluster Resources
 
-> **What it does:** Defines four Pacemaker-managed resources and groups them so they always run together on one node in the correct start/stop order. Active/passive is enforced by the group — resources never split across nodes.
+> **What it does:** Defines four Pacemaker-managed resources and groups them so
+> they always run together on one node in the correct order.
 >
-> Start order: `db_lvm → db_fs → db_vip → db_service`
-> Stop order (automatic reverse): `db_service → db_vip → db_fs → db_lvm`
+> **Start order:** `db_lvm → db_fs → db_vip → db_service`
+> **Stop order (automatic reverse):** `db_service → db_vip → db_fs → db_lvm`
 
 ### 13a — Disable DB Service in systemd (BOTH nodes)
 
+> Pacemaker must be the sole controller of the DB service. If systemd starts it
+> independently at boot, Pacemaker loses track and may start a second instance.
 ```bash
-# Pacemaker must be the sole controller of the DB service.
-# If systemd starts it independently, Pacemaker loses track and may
-# start a second instance or fight with systemd over the service.
+# Run on BOTH nodes
 
 # PostgreSQL:
 systemctl disable postgresql
 systemctl stop postgresql
 
-# MariaDB:
-# systemctl disable mariadb && systemctl stop mariadb
+# MariaDB (if using MariaDB instead):
+# systemctl disable mariadb
+# systemctl stop mariadb
 ```
 
-### 13b — VIP Resource
-
+### 13b — Virtual IP Resource
 ```bash
 # IPaddr2 RA adds/removes the VIP on the active node's eth0
+# The VIP 10.240.70.20 floats to whichever node is active
+
 pcs resource create db_vip IPaddr2 \
   ip=10.240.70.20 \
   cidr_netmask=24 \
@@ -605,10 +753,10 @@ pcs resource create db_vip IPaddr2 \
 ```
 
 ### 13c — LVM Activation Resource
-
 ```bash
-# LVM-activate RA activates/deactivates db_vg on the active node
-# vg_access_mode=system_id prevents dual activation
+# LVM-activate RA activates/deactivates the shared VG on the active node
+# vg_access_mode=system_id prevents both nodes activating the VG simultaneously
+
 pcs resource create db_lvm LVM-activate \
   vgname=db_vg \
   vg_access_mode=system_id \
@@ -617,9 +765,9 @@ pcs resource create db_lvm LVM-activate \
 ```
 
 ### 13d — Filesystem Resource
-
 ```bash
-# Filesystem RA handles mount/unmount of the LV
+# Filesystem RA handles mount, unmount, and fsck of the LV
+
 pcs resource create db_fs Filesystem \
   device="/dev/db_vg/db_lv" \
   directory="/data/db" \
@@ -630,48 +778,54 @@ pcs resource create db_fs Filesystem \
 ```
 
 ### 13e — Database Service Resource
-
 ```bash
-# systemd RA wraps a systemd unit file
+# systemd RA wraps a systemd unit — Pacemaker starts, stops, and monitors it
 
-# PostgreSQL:
+# For PostgreSQL:
 pcs resource create db_service systemd:postgresql \
   op monitor interval=30s \
   op start timeout=120s \
   op stop timeout=120s
 
-# MariaDB: replace systemd:postgresql with systemd:mariadb
+# For MariaDB, replace systemd:postgresql with systemd:mariadb
 ```
 
-### 13f — Group Resources
-
+### 13f — Group All Resources
 ```bash
-# Grouping enforces: same node, correct start order, reverse stop order
+# Grouping enforces:
+#   - All resources run on the SAME node
+#   - Start in left-to-right order
+#   - Stop in right-to-left order
+
 pcs resource group add db-group \
   db_lvm \
   db_fs \
   db_vip \
   db_service
 
-# Prevent unnecessary failback (resource stays on new node after failover)
+# Prevent automatic failback — resource stays on new node after failover
+# (avoids unnecessary disruption if original node recovers)
 pcs resource defaults update resource-stickiness=100
 
-# After 3 failures on a node, migrate to the other
+# After 3 consecutive failures on a node, migrate to the other node
 pcs resource defaults update migration-threshold=3
 
 # Final status check
 pcs status
 ```
 
-**Expected output:**
+**Expected `pcs status` output:**
 ```
 Cluster name: db-cluster
+Stack: corosync
 Current DC: db-node1 - partition with quorum
-2 nodes configured, 6 resource instances configured
+2 nodes configured
+6 resource instances configured
 
 Online: [ db-node1 db-node2 ]
 
 Full list of resources:
+
  fence-db-node1  (stonith:fence_ipmilan):   Started db-node2
  fence-db-node2  (stonith:fence_ipmilan):   Started db-node1
  Resource Group: db-group
@@ -683,54 +837,61 @@ Full list of resources:
 
 ---
 
-## Step 14 — Verify & Test Failover
+## Step 14 — Verify and Test Failover
 
-### 14a — Corosync & Quorum Check
-
+### 14a — Corosync and Quorum Check
 ```bash
+# Both links must show: active with no faults
 corosync-cfgtool -s
-# Both rings must show: active with no faults
 
+# Quorum must be achieved
 pcs quorum status
 # Expected: Quorum provided
+
+# Full cluster config check
+pcs status --full
 ```
 
 ### 14b — Manual Failover via Standby (Safe — No Power Cycle)
-
 ```bash
-# Evacuate db-node1 — resources migrate to db-node2
+# standby evacuates db-node1 without powering it off
+# The db-group migrates to db-node2
+
 pcs node standby db-node1
 
-# Watch in real time (~15-30 seconds)
+# Watch failover in real time (~15-30 seconds)
 watch pcs status
 
 # Confirm VIP moved — run on db-node2:
 ip addr show eth0 | grep 10.240.70.20
+# Expected: inet 10.240.70.20/24 ...
 
 # Bring db-node1 back
 pcs node unstandby db-node1
 
-# Resources stay on db-node2 (stickiness). Move back manually if needed:
+# Resources stay on db-node2 due to stickiness=100
+# To move them back manually:
 pcs resource move db-group db-node1
-pcs resource clear db-group   # remove temporary constraint
+pcs resource clear db-group   # remove temporary constraint after confirming
 ```
 
 ### 14c — STONITH Fence Test (DESTRUCTIVE — Maintenance Window Only)
-
 ```bash
-# WARNING: Powers off db-node2 immediately via IMM
+# WARNING: This immediately powers off db-node2 via IBM IMM
 
 pcs stonith fence db-node2
 
+# Pacemaker confirms db-node2 is off, then starts resources on db-node1
 watch pcs status
-# Resources start on db-node1 within ~30s after fence completes
 
-# Power db-node2 back on via IMM or physical button
-# It will rejoin the cluster automatically once booted
+# Power db-node2 back on via IMM web UI or physical button
+# Once booted and pcsd is running, it rejoins automatically
+
+pcs status
+# Expected: both nodes Online
 ```
 
 ### 14d — Verify DB Connectivity via VIP
-
 ```bash
 # From any host on 10.240.70.0/24
 ping -c 4 10.240.70.20
@@ -752,88 +913,117 @@ mysql -h 10.240.70.20 -u root -p -e "SELECT VERSION();"
 | Resource status | `pcs resource show` |
 | STONITH status | `pcs stonith show` |
 | All constraints | `pcs constraint show` |
-| Start cluster all nodes | `pcs cluster start --all` |
-| Stop cluster all nodes | `pcs cluster stop --all` |
-| Standby a node | `pcs node standby <node>` |
-| Un-standby a node | `pcs node unstandby <node>` |
+| Start cluster — all nodes | `pcs cluster start --all` |
+| Stop cluster — all nodes | `pcs cluster stop --all` |
+| Put node in standby | `pcs node standby <node>` |
+| Remove node from standby | `pcs node unstandby <node>` |
 | Move resource group | `pcs resource move db-group <node>` |
 | Clear move constraint | `pcs resource clear db-group` |
-| Disable resource | `pcs resource disable <res>` |
-| Enable resource | `pcs resource enable <res>` |
-| Clean failed resource | `pcs resource cleanup <res>` |
+| Disable a resource | `pcs resource disable <resource>` |
+| Enable a resource | `pcs resource enable <resource>` |
+| Clean up failed resource | `pcs resource cleanup <resource>` |
 | View failure counts | `pcs resource failcount show` |
 | Corosync link status | `corosync-cfgtool -s` |
 | Quorum status | `pcs quorum status` |
 | Live cluster logs | `journalctl -u corosync -u pacemaker -f` |
 | Corosync log file | `tail -f /var/log/cluster/corosync.log` |
-| Dump cluster CIB | `pcs cluster cib` |
-| Manually fence node | `pcs stonith fence <node>` |
+| Dump cluster CIB (config) | `pcs cluster cib` |
+| Save CIB to file | `pcs cluster cib > /tmp/cluster-cib.xml` |
+| Manually fence a node | `pcs stonith fence <node>` |
 | Fencing history | `pcs stonith history` |
 
 ---
 
 ## Troubleshooting
 
-**Node shows OFFLINE / UNCLEAN:**
+### Node shows OFFLINE or UNCLEAN
 ```bash
+# Check all three cluster daemons on the affected node
 systemctl status pcsd corosync pacemaker
+
+# Detailed corosync logs
 journalctl -u corosync --no-pager -n 50
-firewall-cmd --list-services          # must include high-availability
-ping db-node1 && ping db-node1-hb     # both must resolve
+
+# Verify firewall is not blocking cluster ports
+firewall-cmd --list-services   # must include: high-availability
+
+# Verify hostname resolution — cluster tools rely on this
+ping db-node1
+ping db-node2
+ping db-node1-hb
+ping db-node2-hb
 ```
 
-**Resource stuck in FAILED:**
+### Resource stuck in FAILED or keeps restarting
 ```bash
+# View failure reason in detail
 pcs resource failcount show
-pcs status --full | grep -A5 FAILED
-journalctl -u pacemaker --no-pager -n 100 | grep -iE "error|fail"
-pcs resource cleanup db-group         # clear history, allow retry
+pcs status --full | grep -A 5 FAILED
+
+# Check pacemaker logs for resource agent error output
+journalctl -u pacemaker --no-pager -n 100 | grep -iE "error|fail|warning"
+
+# Clear failure history and allow Pacemaker to retry
+pcs resource cleanup db-group
 ```
 
-**Corosync ring FAULTY:**
+### Corosync ring shows FAULTY
 ```bash
 corosync-cfgtool -s
-ip link show eth1                     # must be UP
-ip addr show eth1                     # must show 10.240.71.x
-ip route show | grep 10.240.71        # route must exist
+
+# If ring 1 (eth1) shows FAULTY, check:
+ip link show eth1                   # must be UP
+ip addr show eth1                   # must show 10.240.71.x
+ip route show | grep 10.240.71      # route must exist
+# Also inspect physical switch port and patch cable for eth1
 ```
 
-**STONITH fails — resources won't start after node failure:**
+### STONITH fails — resources will not start after node failure
 ```bash
-# Physically confirm the node is off, then tell Pacemaker:
+# Pacemaker will not start resources unless it is certain the failed node
+# is powered off. If auto-fencing fails, physically confirm the node is
+# off then manually confirm to Pacemaker:
+
 pcs stonith confirm db-node2
 
-# Re-test fence agent connectivity:
-fence_ipmilan -a 10.248.30.11 -l ADMIN -p 'IMMpassword!' --lanplus -o status
+# Re-test fence agent connectivity
+fence_ipmilan \
+  -a 10.248.30.11 \
+  -l ADMIN \
+  -p 'IMMpassword!' \
+  --lanplus \
+  -o status
 ```
 
-**LVM fails to activate on failover:**
+### LVM fails to activate on failover
 ```bash
-vgs -o+systemid db_vg                 # check for stale system_id
-vgchange --systemid "" db_vg          # clear if stale
-pcs resource show db_lvm              # verify RA config
+# Check for stale system_id from the previous active node
+vgs -o+systemid db_vg
+
+# If a stale system_id is shown, clear it:
+vgchange --systemid "" db_vg
+
+# Verify LVM-activate resource configuration
+pcs resource show db_lvm
 ```
 
-**Two-node quorum — resources won't start after one node fails:**
+### Two-node quorum — resources will not start after one node disappears
 ```bash
-# This is correct behavior. One node cannot get quorum alone UNLESS
-# STONITH confirms the other is off. Never set no-quorum-policy=ignore
-# with shared storage. Ensure STONITH/IMM connectivity is working.
-pcs property show no-quorum-policy    # should be: stop
+# This is correct and expected behaviour.
+# One node cannot achieve quorum alone unless STONITH confirms the other is off.
+# NEVER set no-quorum-policy=ignore when shared storage is involved.
+# The solution is to ensure IBM IMM connectivity and STONITH are working.
+
+# Verify quorum policy is correct:
+pcs property show no-quorum-policy
+# Expected: no-quorum-policy: stop
 ```
 
 ---
 
 > **References:**
-> RHEL 8 HA Cluster Docs: https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/configuring_and_managing_high_availability_clusters/
-> IBM IMM IPMI setup: IBM Documentation — *Enabling IPMI over LAN on IBM System x*
-> `man corosync.conf` | `man pcs` | `man fence_ipmilan`
-
----
-
-The file environment is temporarily unavailable so I can't generate the `.md` download directly, but the entire guide is above — you can copy it straight into a `.md` file for GitHub. Everything here is cross-referenced against:
-
-- RHEL 8 official HA cluster documentation (PCS 0.10.x / Pacemaker 2.x syntax)
-- Corosync 3.x `knet` dual-link config (verified against corosync-qdevice and knet link parameter naming)
-- `fence_ipmilan` parameter names (`ipaddr`, `login`, `passwd`, `lanplus`, `pcmk_host_list`, `power_wait`) confirmed from fence-agents-all man page
-- `LVM-activate` RA parameters (`vgname`, `vg_access_mode`, `activation_mode`) from ocf:heartbeat:LVM-activate reference
+>
+> - [RHEL 8 — Configuring and Managing High Availability Clusters](https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/configuring_and_managing_high_availability_clusters/)
+> - [Pacemaker Resource Agents Reference](https://github.com/ClusterLabs/resource-agents)
+> - `man corosync.conf` | `man pcs` | `man fence_ipmilan`
+> - IBM Documentation: *Enabling IPMI over LAN on IBM System x and BladeCenter*
