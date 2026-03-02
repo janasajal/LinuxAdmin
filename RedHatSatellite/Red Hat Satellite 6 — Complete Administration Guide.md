@@ -1,116 +1,124 @@
-# 🛰️ Red Hat Satellite 6 — Complete Administration Guide
+# Red Hat Satellite 6 — Administration Guide
 
-> **Author:** Sajal Jana
-> **Based on:** RH403 v6.15 | Hands-On Lab Guide
-> **Date:** March 2026
+**Author:** Sajal Jana  
+**Based on:** RH403 v6.15 | Hands-On Lab Guide  
+**Updated:** March 2026
 
 ---
 
 ## Table of Contents
 
-1. [Architecture & Key Concepts](#1-architecture--key-concepts)
-2. [Installation Validation](#2-installation-validation)
-3. [Manifest & Subscriptions](#3-manifest--subscriptions)
+1. [What is Red Hat Satellite?](#1-what-is-red-hat-satellite)
+2. [Verifying Your Installation](#2-verifying-your-installation)
+3. [Manifests & Subscriptions](#3-manifests--subscriptions)
 4. [Content Views & Lifecycle Environments](#4-content-views--lifecycle-environments)
 5. [Sync Plans](#5-sync-plans)
 6. [Activation Keys & Host Registration](#6-activation-keys--host-registration)
 7. [Remote Execution (REX)](#7-remote-execution-rex)
-8. [Errata Management](#8-errata-management)
-9. [Users, Roles & RBAC](#9-users-roles--rbac)
-10. [Capsule Server](#10-capsule-server)
+8. [Errata & Patch Management](#8-errata--patch-management)
+9. [Users, Roles & Access Control](#9-users-roles--access-control)
+10. [Capsule Servers](#10-capsule-servers)
 11. [Backup & Recovery](#11-backup--recovery)
-12. [Daily Admin Checklist & Quick Reference](#12-daily-admin-checklist--quick-reference)
+12. [Daily Admin Checklist & Reference Commands](#12-daily-admin-checklist--reference-commands)
 13. [Lab Environment Reference](#13-lab-environment-reference)
 
 ---
 
-## 1. Architecture & Key Concepts
+## 1. What is Red Hat Satellite?
 
-### What is Red Hat Satellite?
+Red Hat Satellite is an enterprise platform for managing RHEL servers at scale. Instead of logging into each server individually, Satellite gives you a single control plane to handle:
 
-Red Hat Satellite is an enterprise infrastructure management platform for RHEL environments. It provides centralized content management, host registration, patch management, provisioning, and compliance — all from a single interface.
+- **Content delivery** — decide which packages and updates reach which servers
+- **Host registration** — bring new servers under management automatically
+- **Patch management** — apply security updates across hundreds of hosts at once
+- **Provisioning** — build new servers from scratch via PXE boot
+- **Compliance** — audit and enforce security baselines
+
+### How the Components Fit Together
 
 ```
-Red Hat CDN
-     |
-     | (sync)
+Red Hat CDN  (source of truth for packages)
+     │
      ▼
-Satellite Server  ←── Central Brain
-     |
-     | (sync)
+Satellite Server  ←── Central brain
+     │
      ▼
-Capsule Server    ←── Remote Site Proxy
-     |
-     | (register/content)
+Capsule Server    ←── Remote site proxy (optional)
+     │
      ▼
-Content Hosts     ←── Managed RHEL Servers
+Content Hosts     ←── Your managed RHEL servers
 ```
 
-### Core Components
+### Core Components at a Glance
 
-| Component | Role |
+| Component | What It Does |
 |---|---|
-| **Satellite Server** | Central brain — hosts Foreman, Pulp, Candlepin, PostgreSQL |
-| **Capsule Server** | Remote proxy — mirrors content to branch offices/DMZs |
-| **Content Host** | Managed RHEL server registered to Satellite |
-| **Foreman** | Provisioning engine and CMDB |
-| **Pulp** | Content storage and sync engine |
-| **Candlepin** | Subscription management |
-| **Dynflow** | Background task/job engine |
-| **foreman-proxy** | Smart proxy for DNS, DHCP, TFTP, REX |
+| **Satellite Server** | The central hub — hosts the web UI, API, and all core services |
+| **Capsule Server** | A remote proxy that mirrors content to branch offices or DMZs |
+| **Content Host** | Any RHEL server registered and managed by Satellite |
+| **Foreman** | Handles provisioning and acts as a configuration database (CMDB) |
+| **Pulp** | Stores and syncs RPM content from the CDN |
+| **Candlepin** | Manages subscription entitlements |
+| **Dynflow** | Runs background jobs and tasks |
+| **foreman-proxy** | Smart proxy for DNS, DHCP, TFTP, and remote execution |
 
-### Key Concepts
+### Key Concepts You Must Understand
 
-| Concept | Definition |
+| Concept | What It Means in Plain English |
 |---|---|
-| **Organization** | Logical separation of content and hosts (e.g., per team/BU) |
-| **Location** | Physical/logical site (e.g., DC-East, DC-West) |
-| **Manifest** | Signed file from Red Hat portal containing subscription entitlements |
-| **Product** | Collection of repositories (e.g., Red Hat Enterprise Linux for x86_64) |
-| **Repository** | Actual RPM/content store synced from CDN |
-| **Content View** | Frozen snapshot of repositories at a point in time |
-| **Lifecycle Environment** | Promotion pipeline: Library → Dev → QA → Production |
-| **Activation Key** | Auto-configuration token for host registration |
-| **Host Collection** | Named group of hosts for bulk operations |
-| **Simple Content Access (SCA)** | Modern mode — no per-host subscription attachment needed |
+| **Organization** | A logical tenant — separates content, hosts, and settings by team or business unit |
+| **Location** | Represents a physical or logical site (e.g., DC-East, DC-West) |
+| **Manifest** | A signed file from Red Hat that proves you own subscriptions, allowing content sync |
+| **Product** | A bundle of repositories (e.g., RHEL for x86_64 contains BaseOS + AppStream) |
+| **Repository** | The actual store of RPM packages synced from the CDN |
+| **Content View** | A frozen snapshot of repositories — your servers only see what you approve |
+| **Lifecycle Environment** | The promotion pipeline: Library → Dev → QA → Production |
+| **Activation Key** | A token that auto-configures a host when it registers |
+| **Host Collection** | A named group of hosts for running bulk operations |
+| **Simple Content Access (SCA)** | Modern subscription mode — no need to manually attach subscriptions per host |
 
-### Prerequisite Checks
+### Pre-Installation Requirements
 
-| Check | Satellite | Capsule | Command |
+Before installing, verify these on both Satellite and Capsule:
+
+| Requirement | Satellite | Capsule | How to Check |
 |---|---|---|---|
-| Min RAM | 20 GB | 12 GB | `free -g` |
-| OS Version | RHEL 8 x86_64 | RHEL 8 x86_64 | `hostnamectl status` |
-| Forward DNS | Required | Required | `ping -c1 $(hostname -f)` |
-| Reverse DNS | Required | Required | `host <IP>` |
-| NTP (chrony) | Required | Required | `systemctl status chronyd` |
-| CDN Access | Required | Via Satellite | `ping -c1 cdn.redhat.com` |
+| RAM | 20 GB min | 12 GB min | `free -g` |
+| OS | RHEL 8 x86_64 | RHEL 8 x86_64 | `hostnamectl status` |
+| Forward DNS | ✅ Required | ✅ Required | `ping -c1 $(hostname -f)` |
+| Reverse DNS | ✅ Required | ✅ Required | `host <IP>` |
+| NTP (chrony) | ✅ Required | ✅ Required | `systemctl status chronyd` |
+| CDN access | ✅ Required | Via Satellite only | `ping -c1 cdn.redhat.com` |
 
 ---
 
-## 2. Installation Validation
+## 2. Verifying Your Installation
 
-### Verify Satellite Services
+After installing Satellite, confirm everything is healthy before doing anything else.
 
 ```bash
+# Check all service statuses
 satellite-maintain service list
+
+# Run the built-in health checks
 satellite-maintain health check
 ```
 
 All services should show `enabled` or `indirect`. All health checks should return `[OK]`.
 
-### Key Services and Their Roles
+### What Each Service Does
 
-| Service | Role |
+| Service | Purpose |
 |---|---|
-| `foreman.service` | Core web app — UI and API |
-| `httpd.service` | Apache web server |
-| `postgresql.service` | Database |
-| `pulpcore-api.service` | Content management API |
-| `pulpcore-content.service` | Serves content to hosts |
-| `pulpcore-worker.service` | Background sync/publish jobs |
-| `tomcat.service` | Runs Candlepin (subscriptions) |
-| `dynflow-sidekiq.service` | Background task engine |
-| `redis.service` | Cache layer |
+| `foreman.service` | Core web application — UI and API |
+| `httpd.service` | Apache web server (fronts the UI) |
+| `postgresql.service` | Database for all Satellite data |
+| `pulpcore-api.service` | API for content management |
+| `pulpcore-content.service` | Serves packages to hosts |
+| `pulpcore-worker.service` | Runs background sync and publish jobs |
+| `tomcat.service` | Runs Candlepin (subscription engine) |
+| `dynflow-sidekiq.service` | Background task processing |
+| `redis.service` | Caching layer |
 
 ### Required Firewall Ports
 
@@ -118,68 +126,70 @@ All services should show `enabled` or `indirect`. All health checks should retur
 firewall-cmd --list-all
 ```
 
-| Port | Protocol | Purpose |
+| Port | Protocol | Used For |
 |---|---|---|
-| `80/tcp` | HTTP | Content download redirect |
-| `443/tcp` | HTTPS | Web UI, API, host registration |
-| `5647/tcp` | AMQP | Capsule messaging (Qpid) |
-| `8000/tcp` | HTTP | Kickstart file download (provisioning) |
-| `8140/tcp` | TCP | Puppet agent communication |
-| `9090/tcp` | HTTPS | Foreman Smart Proxy / Capsule API |
-| `53/tcp+udp` | DNS | If Satellite manages DNS |
-| `67/udp` | DHCP | If Satellite manages DHCP |
-| `69/udp` | TFTP | PXE boot for provisioning |
+| 80/tcp | HTTP | Content download redirects |
+| 443/tcp | HTTPS | Web UI, API, host registration |
+| 5647/tcp | AMQP | Capsule messaging |
+| 8000/tcp | HTTP | Kickstart file delivery (provisioning) |
+| 8140/tcp | TCP | Puppet agent communication |
+| 9090/tcp | HTTPS | Capsule/Smart Proxy API |
+| 53/tcp+udp | DNS | Only if Satellite manages DNS |
+| 67/udp | DHCP | Only if Satellite manages DHCP |
+| 69/udp | TFTP | PXE boot for provisioning |
 
-> 💡 **NOTE:** NTP sync is critical. SSL certificates fail if clock drift exceeds 5 minutes between Satellite and managed hosts.
+> **⚠️ Important:** Keep clocks in sync. SSL certificates break if the clock difference between Satellite and a managed host exceeds 5 minutes.
 
 ---
 
-## 3. Manifest & Subscriptions
+## 3. Manifests & Subscriptions
 
 ### What is a Manifest?
 
-A manifest is a digitally signed `.zip` file downloaded from `access.redhat.com`. It contains subscription entitlements that allow Satellite to sync content from the Red Hat CDN on behalf of all managed hosts.
+A manifest is a digitally signed `.zip` file you download from `access.redhat.com`. It tells Satellite which Red Hat subscriptions you own, allowing it to sync content from the CDN on behalf of all your servers — your servers never need to touch the internet directly.
 
 ```
 access.redhat.com
-      |
-      | (download manifest.zip)
+      │
+      │  (download manifest.zip once)
       ▼
-Your Satellite
-      |
-      | (syncs content on behalf of all hosts)
+Satellite Server
+      │
+      │  (syncs content for everyone)
       ▼
-Your 500 RHEL Servers (never touch the internet directly)
+All 500 of your RHEL servers
 ```
 
-### Upload Manifest (Web UI)
+### Upload the Manifest (Web UI)
 
-1. Navigate to **Content → Subscriptions**
-2. Click **Manage Manifest → Choose File** → select `manifest.zip`
-3. Click **Upload** and wait for completion
+1. Go to **Content → Subscriptions**
+2. Click **Manage Manifest → Choose File**, select `manifest.zip`
+3. Click **Upload** and wait for it to finish
 
-### Manifest Commands
+### Common Manifest Commands
 
 ```bash
-# Verify subscriptions imported
+# See what subscriptions were imported
 hammer subscription list \
   --organization "Default Organization"
 
-# Refresh manifest (after adding subscriptions on portal)
+# Pull in changes after adding subscriptions on the portal
 hammer subscription refresh-manifest \
   --organization "Default Organization"
 
-# Check manifest history
+# View manifest upload history
 hammer subscription manifest-history \
   --organization "Default Organization"
 
-# Check subscription expiry
+# Check subscription expiry dates
 hammer subscription list \
   --organization "Default Organization" \
   --fields "Name,End Date,Quantity"
 ```
 
 ### Enable Repositories
+
+Enabling a repository tells Satellite to make it available for syncing. You must do this before content will sync.
 
 ```bash
 # Enable RHEL 8 BaseOS
@@ -197,32 +207,34 @@ hammer repository-set enable \
   --releasever "8" --basearch "x86_64"
 ```
 
-> ⚠️ **WARN:** One manifest per Satellite. Never share a manifest between two Satellite servers.
+> **⚠️ Warning:** One manifest per Satellite. Never share a manifest between two Satellite servers — it breaks both.
 
-> 💡 **TIP:** With SCA enabled, hosts automatically get content access. No per-host subscription attachment needed.
+> **💡 Tip:** With Simple Content Access (SCA) enabled, hosts get content automatically upon registration. No manual subscription attachment needed.
 
 ---
 
 ## 4. Content Views & Lifecycle Environments
 
-### Why Content Views?
+### Why You Need Content Views
 
-Content Views are **frozen snapshots** of your repositories. They prevent new (potentially buggy) content from automatically reaching production servers.
+Without Content Views, every package update Red Hat releases would immediately be available to your production servers — including potentially buggy ones. Content Views give you control.
 
 ```
-Synced Repos (always latest)
-        |
-        | (you decide when to publish)
+Red Hat CDN (constantly publishing new packages)
+        │
+        │  (you control when you pull a snapshot)
         ▼
-Content View v1.0  ←── January snapshot
-Content View v2.0  ←── February snapshot
-        |
-        | (you decide what reaches prod)
+Content View v1.0  ←── Tested, stable, January packages
+Content View v2.0  ←── February packages (still in testing)
+        │
+        │  (you promote when you're ready)
         ▼
-Your Servers see ONLY what YOU approve
+Production Servers see ONLY what you've approved
 ```
 
-### Create Lifecycle Environments
+### Create the Promotion Pipeline
+
+The lifecycle pipeline lets you test changes in Dev before they ever reach Production.
 
 ```bash
 hammer lifecycle-environment create \
@@ -235,18 +247,18 @@ hammer lifecycle-environment create \
   --name "Production" --prior "QA" --organization "Operations"
 ```
 
-### Content View Workflow
+### Content View Workflow — Step by Step
 
-| Step | Action | Command |
+| Step | What You're Doing | Command |
 |---|---|---|
-| 1 | Create Content View | `hammer content-view create --name "RHEL8-CV" --organization "Ops"` |
-| 2 | Add Repository | `hammer content-view add-repository --name "RHEL8-CV" --repository "BaseOS"` |
-| 3 | Publish Version | `hammer content-view publish --name "RHEL8-CV" --organization "Ops"` |
+| 1 | Create an empty Content View | `hammer content-view create --name "RHEL8-CV" --organization "Ops"` |
+| 2 | Add a repository to it | `hammer content-view add-repository --name "RHEL8-CV" --repository "BaseOS"` |
+| 3 | Publish a version (snapshot) | `hammer content-view publish --name "RHEL8-CV" --organization "Ops"` |
 | 4 | Promote to Dev | `hammer content-view version promote --to-lifecycle-environment "Dev"` |
 | 5 | Promote to QA | `hammer content-view version promote --to-lifecycle-environment "QA"` |
-| 6 | Promote to Prod | `hammer content-view version promote --to-lifecycle-environment "Production"` |
+| 6 | Promote to Production | `hammer content-view version promote --to-lifecycle-environment "Production"` |
 
-### Full Promote Command
+### Promote a Specific Version
 
 ```bash
 hammer content-view version promote \
@@ -256,22 +268,22 @@ hammer content-view version promote \
   --organization "Default Organization"
 ```
 
-### List & Verify
+### Verify Your Content Views
 
 ```bash
 # List all content views
 hammer content-view list --organization "Default Organization"
 
-# Check which environments a CV is promoted to
+# Check where a specific CV has been promoted
 hammer content-view info \
   --name "RHEL8-BaseOS-CV" \
   --organization "Default Organization" \
   --fields "Name,Lifecycle Environments"
 ```
 
-> ⚠️ **WARN:** Publishing creates a snapshot in Library only. You MUST promote to make it available to hosts.
+> **⚠️ Warning:** Publishing creates a snapshot in **Library only**. You must promote it to a lifecycle environment before any hosts can see it.
 
-> 💡 **TIP:** Always promote Dev → QA → Production. Never skip stages, even for emergency patches.
+> **💡 Tip:** Always follow the Dev → QA → Production path. Even for emergency patches — skipping stages causes problems that are hard to trace later.
 
 ---
 
@@ -279,12 +291,12 @@ hammer content-view info \
 
 ### What is a Sync Plan?
 
-A Sync Plan is a scheduled job that automatically pulls latest content from the Red Hat CDN into Satellite's local storage — so you don't have to do it manually.
+A Sync Plan is a scheduled job that automatically pulls the latest packages from the Red Hat CDN into Satellite's local storage. Without one, your content never updates unless you trigger syncs manually.
 
 ### Create and Assign a Sync Plan
 
 ```bash
-# Create daily sync plan
+# Create a plan that runs daily at 2 AM
 hammer sync-plan create \
   --name "Daily Sync" \
   --interval daily \
@@ -292,18 +304,18 @@ hammer sync-plan create \
   --enabled true \
   --organization "Default Organization"
 
-# Assign to product
+# Attach it to a product
 hammer product set-sync-plan \
   --name "Red Hat Enterprise Linux for x86_64" \
   --sync-plan "Daily Sync" \
   --organization "Default Organization"
 
-# Verify sync plan is enabled
+# Confirm it's enabled
 hammer sync-plan info \
   --name "Daily Sync" \
   --organization "Default Organization"
 
-# Trigger manual sync
+# Trigger a manual sync right now
 hammer product synchronize \
   --name "Red Hat Enterprise Linux for x86_64" \
   --organization "Default Organization"
@@ -313,20 +325,20 @@ hammer product synchronize \
 
 | Time | Task |
 |---|---|
-| 2:00 AM | Satellite syncs all products from Red Hat CDN |
+| 2:00 AM | Satellite syncs all products from the CDN |
 | 4:00 AM | Capsules sync from Satellite |
-| Sunday 1AM | Full backup of Satellite |
-| Mon-Sat 1AM | Incremental backup |
+| Sunday 1:00 AM | Full Satellite backup |
+| Mon–Sat 1:00 AM | Incremental backup |
 
-### Sync Plan Intervals
+### Sync Interval Options
 
-| Interval | Use Case |
+| Interval | When to Use |
 |---|---|
-| `hourly` | Testing only |
-| `daily` | Recommended for production |
-| `weekly` | Low priority / large repos |
+| `hourly` | Testing only — not for production |
+| `daily` | Recommended default |
+| `weekly` | Low-priority repos or large datasets |
 
-> ⚠️ **WARN:** Always verify sync plan is `enabled: true`. A disabled plan silently does nothing.
+> **⚠️ Warning:** Always confirm the sync plan is `enabled: true`. A disabled plan fails silently — you won't notice until your content is weeks out of date.
 
 ---
 
@@ -334,12 +346,12 @@ hammer product synchronize \
 
 ### What is an Activation Key?
 
-An Activation Key is a pre-configuration token. When a host registers using an activation key, it automatically gets assigned the correct Content View, Lifecycle Environment, Host Collections, and Repository access — no manual steps needed.
+An Activation Key is a pre-configured token you hand to a new server during registration. When the server registers using that key, it automatically receives the correct Content View, Lifecycle Environment, Host Collection membership, and repository access — no manual configuration needed.
 
-### Create Activation Key
+### Create an Activation Key
 
 ```bash
-# Create key
+# Create the key
 hammer activation-key create \
   --name "OperationsServers" \
   --organization "Operations" \
@@ -347,49 +359,51 @@ hammer activation-key create \
   --content-view "OperationsServerBase" \
   --unlimited-hosts
 
-# Set release version
+# Set the RHEL release version
 hammer activation-key update \
   --name "OperationsServers" \
   --organization "Operations" \
   --release-version "9"
 
-# Add host collection
+# Add a host collection
 hammer activation-key add-host-collection \
   --name "OperationsServers" \
   --host-collection "OpsServers" \
   --organization "Operations"
 
-# Enable a repository override
+# Enable a specific repository for this key
 hammer activation-key content-override \
   --name "OperationsServers" \
   --organization "Operations" \
   --content-label "satellite-client-6-for-rhel-9-x86_64-rpms" \
   --value 1
 
-# List activation keys
+# List all activation keys
 hammer activation-key list --organization "Operations"
 ```
 
-### Register a Host
+### Register a New Host
+
+Run these commands **on the host you want to register**, not on Satellite:
 
 ```bash
-# Step 1 — Install Satellite CA certificate on host
+# Step 1 — Trust Satellite's SSL certificate
 dnf localinstall \
   http://satellite.lab.example.com/pub/katello-ca-consumer-latest.noarch.rpm
 
-# Step 2 — Register (use org LABEL not display name)
+# Step 2 — Register using the activation key (use org LABEL, not display name)
 subscription-manager register \
   --org Operations \
   --activationkey OperationsServers
 
-# Step 3 — Verify SCA mode (org_environment = SCA active)
+# Step 3 — Verify SCA mode is active
 cat /var/lib/rhsm/cache/content_access_mode.json | python -m json.tool
 
-# Step 4 — Install Katello agent
+# Step 4 — Install the Katello agent
 dnf install katello-agent -y
 ```
 
-### Clean Up Old Registration
+### Clean Up a Host Before Re-registering
 
 ```bash
 dnf clean all
@@ -399,19 +413,19 @@ subscription-manager unregister
 subscription-manager clean
 ```
 
-### Registration Troubleshooting
+### Registration Error Reference
 
-| Error | Cause | Fix |
+| Error | Root Cause | Solution |
 |---|---|---|
-| HTTP 401 Unauthorized | Pointing to wrong Satellite | Install `katello-ca-consumer` RPM |
-| Organization does not exist | Wrong org name | Use label: `hammer organization list` |
-| Activation key not found | Key in wrong org | Check: `hammer activation-key list --organization "Org"` |
-| HTTP 500 (no env/CV) | Activation key misconfigured | `hammer activation-key update --lifecycle-environment` |
-| Permission denied (publickey) | REX SSH key missing | Manually add `foreman-proxy` pub key to host |
+| HTTP 401 Unauthorized | Missing Satellite CA cert | Install the `katello-ca-consumer` RPM |
+| "Organization does not exist" | Wrong org name used | Use org label: `hammer organization list` |
+| "Activation key not found" | Key is in a different org | Check: `hammer activation-key list --organization "Org"` |
+| HTTP 500 | Activation key missing CV or environment | `hammer activation-key update --lifecycle-environment` |
+| REX "Permission denied (publickey)" | SSH key not on host | Add the `foreman-proxy` public key manually |
 
-> 💡 **TIP:** Always use the org **LABEL** (no spaces), not the display name when registering hosts.
+> **💡 Tip:** Always use the org **LABEL** (no spaces, e.g., `Default_Organization`) — not the display name. Using the display name with spaces causes 401 errors.
 
-> ⚠️ **WARN:** Every activation key MUST have an Organization, Lifecycle Environment, and Content View assigned. Missing any one of these causes registration to fail.
+> **⚠️ Warning:** Every activation key must have an Organization, Lifecycle Environment, and Content View. Missing any one causes registration to fail.
 
 ---
 
@@ -419,24 +433,24 @@ subscription-manager clean
 
 ### How REX Works
 
-REX uses SSH key-based authentication to run jobs on managed hosts without logging into each one individually. Satellite's `foreman-proxy` SSH public key must exist in `/root/.ssh/authorized_keys` on each target host.
+REX lets you run commands on managed hosts without SSH-ing into each one manually. Satellite's `foreman-proxy` service has an SSH key pair. Its public key must exist in `/root/.ssh/authorized_keys` on each target host. Once in place, you can run jobs from Satellite against any number of hosts simultaneously.
 
-### REX Commands
+### Running Jobs
 
 ```bash
-# Run command on single host
+# Run a command on a single host
 hammer job-invocation create \
   --job-template "Run Command - Script Default" \
   --inputs command="uptime" \
   --search-query "name = serverc.lab.example.com"
 
-# Run on entire host collection
+# Run on all hosts in a collection
 hammer job-invocation create \
   --job-template "Run Command - Script Default" \
   --inputs command="df -h" \
   --search-query "host_collection = OpsServers"
 
-# Run on all hosts in an org
+# Run across an entire organization
 hammer job-invocation create \
   --job-template "Run Command - Script Default" \
   --inputs command="uname -r" \
@@ -445,106 +459,106 @@ hammer job-invocation create \
 # Check job status
 hammer job-invocation list
 
-# Get job output
+# View output from a completed job
 hammer job-invocation output \
   --id <JOB_ID> \
   --host serverc.lab.example.com
 ```
 
-### Fix REX SSH Key Issue
+### Fix the "Permission Denied" SSH Error
 
 ```bash
-# On Satellite — get the public key
+# On Satellite — copy the public key
 cat /usr/share/foreman-proxy/.ssh/id_rsa_foreman_proxy.pub
 
-# On target host — add the key manually
+# On the target host — add it manually
 mkdir -p /root/.ssh && chmod 700 /root/.ssh
 echo "<PASTE_KEY_HERE>" >> /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
 
-# Test SSH connectivity from Satellite
+# Test the connection from Satellite
 ssh -i /usr/share/foreman-proxy/.ssh/id_rsa_foreman_proxy \
   root@serverc.lab.example.com 'hostname'
 ```
 
 ### Search Query Reference
 
-| Target | Search Query |
+| Target Scope | Search Query Syntax |
 |---|---|
 | Single host | `name = serverc.lab.example.com` |
 | Host collection | `host_collection = OpsServers` |
 | All RHEL 9 hosts | `os = RHEL 9` |
-| By lifecycle env | `lifecycle_environment = Production` |
+| By lifecycle environment | `lifecycle_environment = Production` |
 | By organization | `organization = Operations` |
-| Combined | `host_collection = OpsServers and os = RHEL 9` |
+| Combined filter | `host_collection = OpsServers and os = RHEL 9` |
 
 ---
 
-## 8. Errata Management
+## 8. Errata & Patch Management
 
-### Errata Types & Priority
+### Errata Priority Guide
 
-| Type | Priority | Action |
+| Errata Type | Priority | Target Response Time |
 |---|---|---|
-| Security (Critical/Important) | 🔴 Immediate | Patch same day |
-| Security (Moderate) | 🟠 High | Patch within 7 days |
+| Security — Critical / Important | 🔴 Urgent | Same day |
+| Security — Moderate | 🟠 High | Within 7 days |
 | Bugfix | 🟡 Medium | Next maintenance window |
-| Enhancement | 🟢 Low | Next quarterly update |
+| Enhancement | 🟢 Low | Next quarterly cycle |
 
-### Apply Errata Commands
+### Applying Errata
 
 ```bash
-# List errata on a host
+# See what errata a host needs
 hammer host errata list --host serverc.lab.example.com
 
-# Apply security errata to single host
+# Apply all security errata to a single host
 hammer job-invocation create \
   --feature katello_errata_install \
   --search-query "name = serverc.lab.example.com" \
   --inputs errata=security
 
-# Apply ALL errata to entire org
+# Apply all errata across an entire org
 hammer job-invocation create \
   --feature katello_errata_install \
   --search-query "organization = Operations"
 
-# Apply specific errata by ID
+# Apply a specific errata by ID
 hammer job-invocation create \
   --feature katello_errata_install \
   --search-query "name = serverc.lab.example.com" \
   --inputs errata=RHSA-2026:1234
 
-# Check if reboot needed after patching
+# Check if a reboot is needed after patching
 hammer job-invocation create \
   --job-template "Run Command - Script Default" \
   --inputs command="needs-restarting -r; echo Exit:$?" \
   --search-query "name = serverc.lab.example.com"
 ```
 
-### Patch Tuesday Workflow
+### Recommended Patch Cadence
 
 ```
-Monday AM  : Sync latest content from CDN
-Tuesday AM : Publish new Content View version
-Wed-Fri    : Promote to Dev → Dev team tests
-Next Monday: Promote to QA → QA validates
-Next Friday: Promote to Production ✅
+Monday AM     Sync latest content from CDN
+Tuesday AM    Publish new Content View version
+Wed – Fri     Promote to Dev → Dev team tests
+Next Monday   Promote to QA → QA team validates
+Next Friday   Promote to Production ✅
 ```
 
-> 💡 **TIP:** Always verify errata count = 0 after patching with `hammer host errata list`.
+> **💡 Tip:** After patching, always run `hammer host errata list` to confirm errata count is zero.
 
 ---
 
-## 9. Users, Roles & RBAC
+## 9. Users, Roles & Access Control
 
-### Why RBAC?
+### Why RBAC Matters
 
-Role-Based Access Control ensures users only have access to what they need. This prevents accidental deletions, unauthorized changes, and improves security audit compliance.
+Role-Based Access Control (RBAC) prevents accidents and unauthorized changes. A junior admin should be able to see host status but not delete content views. RBAC lets you enforce that precisely.
 
-### Create User and Role
+### Create a User and Assign a Role
 
 ```bash
-# Create user
+# Create a new user
 hammer user create \
   --login jradmin \
   --password redhat123 \
@@ -554,31 +568,30 @@ hammer user create \
   --organizations "Operations" \
   --auth-source-id 1
 
-# Create role
+# Create a custom role
 hammer role create --name "Junior Admin"
 
-# Add permissions to role
+# Grant permissions to the role
 hammer filter create \
   --role "Junior Admin" \
   --permissions "view_hosts,edit_hosts"
 
-# Add content view permissions
 hammer filter create \
   --role "Junior Admin" \
   --permissions "view_content_views"
 
-# Assign role to user
+# Assign the role to the user
 hammer user add-role \
   --login jradmin \
   --role "Junior Admin"
 
-# Verify user roles
+# Verify the user's roles
 hammer user info --login jradmin --fields "Login,Roles"
 
-# List all roles
+# List all defined roles
 hammer role list
 
-# List permissions for a resource
+# See what permissions exist for a resource type
 hammer permission list --resource-type Host
 ```
 
@@ -586,86 +599,86 @@ hammer permission list --resource-type Host
 
 | Role | Best For |
 |---|---|
-| **Viewer** | Read-only access — helpdesk |
-| **Site Manager** | Manage one location |
-| **Organization Admin** | Full org access — team lead |
-| **Manager** | Most admin tasks |
-| **System Admin** | Full Satellite access — senior admin |
+| **Viewer** | Read-only — good for helpdesk staff |
+| **Site Manager** | Full control of a single location |
+| **Organization Admin** | Full control of one organization — team leads |
+| **Manager** | Most admin tasks across the system |
+| **System Admin** | Full Satellite access — senior admins only |
 
-> 💡 **TIP:** Follow least privilege principle — give users ONLY the permissions they need.
+> **💡 Tip:** Always follow the principle of least privilege — give users only the access they actually need.
 
-> 💡 **TIP:** In production, integrate with LDAP/Active Directory via **Administer → LDAP Authentication** for centralized user management.
+> **💡 Tip:** In production, connect Satellite to LDAP/Active Directory via **Administer → LDAP Authentication** to avoid managing users in two places.
 
 ---
 
-## 10. Capsule Server
+## 10. Capsule Servers
 
-### What Does a Capsule Do?
+### What is a Capsule For?
 
-A Capsule Server is a smart proxy deployed at remote/branch sites. It mirrors content locally so remote hosts don't need to communicate with Satellite HQ over WAN for every package download.
+A Capsule Server is a local mirror for remote sites. Without a Capsule, every server in a branch office would pull packages from Satellite HQ over the WAN — slow and expensive. A Capsule sits in the branch office, holds a local copy of content, and handles registration and patching locally.
 
 ```
-Satellite HQ (headquarters)
-      |
-      | WAN (only metadata/sync traffic)
+Satellite HQ
+      │
+      │  WAN — only sync/metadata traffic
       ▼
 Capsule (branch office)
-      |
-      | LAN (fast local traffic)
+      │
+      │  LAN — fast, local
       ▼
-Branch Office Hosts
+Branch Office Servers
 ```
 
-### Capsule Services
+### What a Capsule Can Handle
 
-| Service | Function |
+| Capability | What It Does |
 |---|---|
 | Pulp Content | Local RPM repository mirror |
-| Registration | Proxy for host registration |
-| Remote Execution | REX proxy for remote jobs |
-| DNS/DHCP/TFTP | Infrastructure services for provisioning |
-| Templates | Kickstart/provisioning templates |
-| OpenSCAP | Compliance scan results proxy |
+| Host Registration | Proxies registration requests to Satellite |
+| Remote Execution | Runs REX jobs for local hosts |
+| DNS / DHCP / TFTP | Infrastructure services for local provisioning |
+| Kickstart Templates | Serves provisioning templates locally |
+| OpenSCAP | Collects and proxies compliance scan results |
 
 ### Capsule Commands
 
 ```bash
-# List all capsules
+# See all registered capsules
 hammer capsule list
 
-# Get capsule details
+# View details for a specific capsule
 hammer capsule info --name capsule.lab.example.com
 
-# Add lifecycle environment to capsule
+# Assign a lifecycle environment to a capsule
 hammer capsule content add-lifecycle-environment \
   --name capsule.lab.example.com \
   --organization "Operations" \
   --lifecycle-environment "Production"
 
-# Sync content to capsule
+# Push content to the capsule
 hammer capsule content synchronize \
   --name capsule.lab.example.com
 
-# Check sync status
+# Check sync progress
 hammer capsule content sync-status \
   --name capsule.lab.example.com
 
-# List capsule lifecycle environments
+# See which environments are assigned
 hammer capsule content lifecycle-environments \
   --name capsule.lab.example.com
 ```
 
 ### Capsule Sizing Guide
 
-| Hosts Managed | RAM | Disk | CPU |
+| Managed Hosts | RAM | Disk | CPU |
 |---|---|---|---|
 | Up to 500 | 12 GB | 500 GB | 4 cores |
-| 500 – 2000 | 16 GB | 1 TB | 8 cores |
-| 2000 – 5000 | 32 GB | 2 TB | 16 cores |
+| 500 – 2,000 | 16 GB | 1 TB | 8 cores |
+| 2,000 – 5,000 | 32 GB | 2 TB | 16 cores |
 
-> ⚠️ **WARN:** Always sync Satellite FIRST, then sync Capsules. Never the other way around.
+> **⚠️ Warning:** Always sync Satellite first, then sync Capsules. Never the reverse.
 
-> ⚠️ **WARN:** Capsule and Satellite must run the same RHEL major version. Mismatched versions cause mysterious failures.
+> **⚠️ Warning:** Satellite and Capsule must run the same RHEL major version. Mixed versions cause hard-to-diagnose failures.
 
 ---
 
@@ -673,46 +686,46 @@ hammer capsule content lifecycle-environments \
 
 ### What Gets Backed Up
 
-| Component | Location | Est. Size |
+| Data | Location | Typical Size |
 |---|---|---|
-| PostgreSQL DB | `/var/lib/pgsql/` | 1–10 GB |
-| Candlepin DB | Included in DB backup | 100–500 MB |
-| Config files | `/etc/foreman/`, `/etc/pulp/` | 10–50 MB |
+| PostgreSQL database | `/var/lib/pgsql/` | 1–10 GB |
+| Candlepin (subscriptions) | Included in DB backup | 100–500 MB |
+| Configuration files | `/etc/foreman/`, `/etc/pulp/` | 10–50 MB |
 | SSL certificates | `/etc/pki/` | 1–5 MB |
-| Pulp content (RPMs) | `/var/lib/pulp/` | 50 GB – 2 TB |
+| Pulp content (all RPMs) | `/var/lib/pulp/` | 50 GB – 2 TB |
 
 ### Backup Commands
 
 ```bash
-# Full online backup (Satellite stays running)
+# Full online backup — Satellite keeps running
 satellite-maintain backup online \
   --assumeyes \
   /backup/satellite
 
-# Skip pulp content (faster — lab use only)
+# Skip RPM content — faster, for lab/testing only
 satellite-maintain backup online \
   --assumeyes \
   --skip-pulp-content \
   /backup/satellite
 
-# Incremental backup (changes since last backup)
+# Incremental backup — only changes since last backup
 satellite-maintain backup online \
   --assumeyes \
   --incremental /backup/satellite/PREVIOUS_BACKUP_DIR \
   /backup/satellite
 
-# Offline backup (most consistent — use during maintenance)
+# Offline backup — most consistent, use during maintenance windows
 satellite-maintain backup offline \
   --assumeyes \
   /backup/satellite
 
-# Restore from backup (WARNING: overwrites current config!)
+# Restore from backup (WARNING: this overwrites your current config!)
 satellite-maintain restore --assumeyes /backup/satellite/BACKUP_DIR
 
-# Verify backup metadata
+# Inspect backup metadata
 cat /backup/satellite/*/metadata.yml
 
-# Check backup size
+# Check how much space the backup is using
 du -sh /backup/satellite/*/
 ```
 
@@ -720,42 +733,42 @@ du -sh /backup/satellite/*/
 
 | Schedule | Type | Notes |
 |---|---|---|
-| Sunday 1AM | Full backup | All components including pulp |
-| Mon–Sat 1AM | Incremental | Changes only, much faster |
-| Monthly | Offsite copy | `rsync` to remote backup server |
-| Quarterly | Test restore | Restore to test server and verify |
+| Sunday 1:00 AM | Full backup | Includes all Pulp content |
+| Mon–Sat 1:00 AM | Incremental | Only changed data — much faster |
+| Monthly | Offsite copy | `rsync` to a remote server |
+| Quarterly | Test restore | Restore to a test environment and verify |
 
-> ⚠️ **WARN:** A backup you have never tested is NOT a backup. Test restores quarterly!
+> **⚠️ Warning:** A backup you've never tested is not a backup. Restore to a test system every quarter.
 
-> ⚠️ **WARN:** In production, ALWAYS backup pulp content. `--skip-pulp-content` is for lab use only.
+> **⚠️ Warning:** In production, always include Pulp content in backups. `--skip-pulp-content` is only acceptable in lab environments.
 
 ---
 
-## 12. Daily Admin Checklist & Quick Reference
+## 12. Daily Admin Checklist & Reference Commands
 
-### Morning Health Check
+### Morning Health Check Routine
 
 ```bash
-# 1. Verify all services running
+# 1. Verify all services are running
 satellite-maintain service list
 
-# 2. Run full health check
+# 2. Run the full health check
 satellite-maintain health check
 
-# 3. Check overnight sync status
-# Web UI: Content → Sync Status
+# 3. Check overnight sync results
+#    Web UI: Content → Sync Status
 
 # 4. Check for failed jobs
 hammer job-invocation list
 
-# 5. Check disk space
+# 5. Monitor disk usage
 df -h /var/lib/pulp /var/lib/pgsql
 
-# 6. Check paused tasks
-# Web UI: Monitor → Jobs → filter by paused
+# 6. Check for paused or stuck tasks
+#    Web UI: Monitor → Jobs → filter by "paused"
 ```
 
-### Essential Hammer Commands
+### Quick Reference: Essential Hammer Commands
 
 ```bash
 # ── Organizations & Hosts ─────────────────────────────────────
@@ -805,18 +818,18 @@ satellite-maintain backup online --assumeyes /backup/satellite
 satellite-maintain health check
 ```
 
-### Common Troubleshooting
+### Troubleshooting Reference
 
-| Problem | Likely Cause | Fix |
+| Symptom | Most Likely Cause | Fix |
 |---|---|---|
-| HTTP 401 on registration | No Satellite CA cert | Install `katello-ca-consumer` RPM |
-| Activation key not found | Wrong organization | `hammer activation-key list` for each org |
-| REX permission denied | SSH key not distributed | Add `foreman-proxy` pub key to host manually |
+| HTTP 401 on registration | Satellite CA cert not installed | Install the `katello-ca-consumer` RPM |
+| "Activation key not found" | Key is in a different org | Run `hammer activation-key list` per org |
+| REX "Permission denied" | SSH key missing on host | Copy `foreman-proxy` public key to host |
 | Sync failed | Disk full or CDN unreachable | `df -h /var/lib/pulp`; check firewall |
-| Web UI slow / timeouts | Stuck tasks or low RAM | `satellite-maintain health check` |
-| Host sees wrong content | CV not promoted to env | `hammer content-view version promote` |
-| Manifest refresh fails | SCA / disconnected env | Expected in disconnected lab environments |
-| Services not starting | Disk full or DB issue | `df -h`; check `journalctl -u postgresql` |
+| Web UI slow / timing out | Stuck tasks or low memory | Run `satellite-maintain health check` |
+| Host sees outdated content | Content View not promoted | Run `hammer content-view version promote` |
+| Manifest refresh fails | Disconnected/SCA environment | Expected in lab; not an error |
+| Services won't start | Disk full or database issue | `df -h`; check `journalctl -u postgresql` |
 
 ---
 
@@ -834,10 +847,10 @@ satellite-maintain health check
 | `serverc.lab.example.com` | 172.25.250.12 | Content host C |
 | `serverd.lab.example.com` | 172.25.250.13 | Content host D |
 | `servere.lab.example.com` | 172.25.250.14 | Content host E |
-| `utility.lab.example.com` | 172.25.250.220 | DNS, LDAP and utility services |
+| `utility.lab.example.com` | 172.25.250.220 | DNS, LDAP, and utility services |
 | `classroom.example.com` | 172.25.254.254 | Classroom materials server |
 
-### Lab Credentials
+### Default Credentials
 
 | System | Username | Password |
 |---|---|---|
@@ -849,37 +862,37 @@ satellite-maintain health check
 ### Terminal Prompt Reference
 
 ```bash
-[student@workstation ~]$   # Your main desktop — start all labs here
-[root@satellite ~]#        # Satellite — run hammer commands here
+[student@workstation ~]$   # Your main workstation — start all labs here
+[root@satellite ~]#        # Satellite server — run hammer commands here
 [root@capsule ~]#          # Capsule server
 [root@servera ~]#          # Content host A
 [root@serverc ~]#          # Content host C
 [root@serverd ~]#          # Content host D
 ```
 
-> ⚠️ **WARN:** Always check your terminal prompt before running commands. `subscription-manager` runs on **content hosts**, `hammer` runs on the **Satellite server**.
+> **⚠️ Warning:** Always check your terminal prompt before running commands. `subscription-manager` runs on **content hosts**; `hammer` runs on the **Satellite server**. Running them in the wrong place is a common mistake.
 
 ---
 
-## Real-World Lessons Learned
+## Lessons from the Field
 
-These are the most common mistakes made in production — and how to fix them:
+These are the most common mistakes in production — and how to avoid them:
 
-1. **Always verify the Organization** in the top-left corner of the Web UI before creating anything. Working in the wrong org is the #1 mistake.
+1. **Check your Organization first.** The Organization selector in the top-left of the Web UI controls everything. Working in the wrong org and creating content there is the most common mistake — and it wastes a lot of time to unwind.
 
-2. **Use org LABEL not name** — Labels have no spaces (`Default_Organization`, `Operations`). Names can have spaces and cause 401 errors.
+2. **Use org labels, not display names.** Labels have no spaces (`Default_Organization`, `Operations`). Display names with spaces break CLI commands and cause 401 errors.
 
-3. **Content View must be promoted** to a lifecycle environment before hosts in that environment can see new content. Publishing to Library is not enough.
+3. **Publishing ≠ Deploying.** Publishing a Content View only creates a snapshot in Library. You must also promote it to a lifecycle environment before any host in that environment can see new content.
 
-4. **Every Activation Key needs** Organization + Lifecycle Environment + Content View. Missing any one causes registration to fail with HTTP 500.
+4. **Activation keys need three things.** Every activation key must have an Organization, a Lifecycle Environment, and a Content View assigned. Missing any one of these will fail registration with HTTP 500.
 
-5. **REX needs SSH keys** on target hosts. If you see `Permission denied (publickey)`, manually copy the `foreman-proxy` public key.
+5. **REX needs SSH keys.** If you see `Permission denied (publickey)`, the `foreman-proxy` public key isn't on that host yet. Add it manually.
 
-6. **DNS must work in both directions** — forward (FQDN → IP) and reverse (IP → FQDN). Broken reverse DNS causes SSL certificate errors and host registration failures.
+6. **DNS must work in both directions.** Satellite requires both forward (hostname → IP) and reverse (IP → hostname) DNS to work. Broken reverse DNS causes SSL errors and host registration failures.
 
-7. **Monitor disk space on `/var/lib/pulp`** — This is where all RPMs are stored. It can fill up fast in production (500 GB – 2 TB+). A full disk silently breaks syncs.
+7. **Watch disk space on `/var/lib/pulp`.** This is where all synced RPMs live. In production it can grow to 500 GB – 2 TB+. When it fills up, syncs fail silently.
 
-8. **Test your backups** — Run a restore on a test system quarterly. Discovering a corrupt backup during an actual disaster is the worst time to find out.
+8. **Test your restores.** Run a full restore drill on a test system every quarter. Finding out your backup is corrupt during an actual outage is the worst possible time.
 
 ---
 
