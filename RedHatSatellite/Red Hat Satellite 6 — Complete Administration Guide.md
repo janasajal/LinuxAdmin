@@ -495,6 +495,21 @@ ssh -i /usr/share/foreman-proxy/.ssh/id_rsa_foreman_proxy \
 ---
 
 ## 8. Errata & Patch Management
+In Red Hat Satellite, **errata** are official update notices from Red Hat that package one or more fixes into a named advisory. There are three types:
+
+- **Security (RHSA)** — fixes vulnerabilities; highest priority
+- **Bugfix (RHBA)** — fixes software defects
+- **Enhancement (RHEA)** — adds new features or improvements
+
+### How It Works
+
+When Red Hat releases a fix, it publishes an errata advisory (e.g., `RHSA-2026:1234`). Satellite pulls this in during a content sync. You can then see exactly which of your hosts are missing which advisories — and apply them in bulk without touching each server individually.
+### Basic Workflow
+
+1. **Sync content** — Satellite pulls latest packages and errata from the CDN
+2. **Publish a new Content View version** — captures the updated packages in a snapshot
+3. **Promote through environments** — Dev → QA → Production at your own pace
+4. **Apply errata to hosts** — via Remote Execution (REX), targeted by host, collection, or org
 
 ### Errata Priority Guide
 
