@@ -1,6 +1,6 @@
 # Ansible Hands-On Lab — AWS EC2 + RHEL 9
 > **Author:** Sajal Jana  
-> **Date:** March 9, 2026  
+> **Date:** January, 2026  
 > **Environment:** AWS EC2 (ap-south-1) · RHEL 9.6 → 9.7 · Ansible Core 2.14.18  
 > **Purpose:** Real-world production Ansible lab covering patching, deployment, secrets management and roles
 
