@@ -914,4 +914,4 @@ ansible-lab/
 
 ---
 
-*Lab completed on March 9, 2026 — hands-on, step by step, one command at a time.*
+*Lab completed on January, 2026 — hands-on, step by step, one command at a time.*
