@@ -1,134 +1,140 @@
 ================================================================
-  LINUX: ENVIRONMENT VARIABLE PLACEMENT — CONCISE GUIDE
+       LINUX: ENVIRONMENT VARIABLE PLACEMENT GUIDE
 ================================================================
 
-────────────────────────────────────────────────────────────────
-1. /etc/environment  →  Global, static, no scripting
-────────────────────────────────────────────────────────────────
-  - Applies to ALL users and ALL shells at login.
-  - Only simple KEY=value pairs. No export, no logic.
-  - Requires logout/login to take effect.
 
-  EXAMPLE:
-    JAVA_HOME=/usr/lib/jvm/java-17
-    LANG=en_US.UTF-8
-    APP_ENV=production
+----------------------------------------------------------------
+ 1.  /etc/environment
+     Global | Static | No scripting
+----------------------------------------------------------------
 
-  USE WHEN: You need a system-wide constant that never changes.
+ What it does : Applies to ALL users and ALL shells at login.
+ Syntax       : KEY=value pairs only. No export, no logic.
+ Takes effect : After full logout / login.
 
-────────────────────────────────────────────────────────────────
-2. /etc/profile.d/custom.sh  →  Global, with scripting (Best Practice)
-────────────────────────────────────────────────────────────────
-  - Drop a *.sh file here; it's sourced for every login shell.
-  - Supports full bash scripting: conditionals, exports, logic.
-  - Modular — one file per concern, easy to audit.
+ EXAMPLE
+ -------
+   JAVA_HOME=/usr/lib/jvm/java-17
+   LANG=en_US.UTF-8
+   APP_ENV=production
+   TZ=Asia/Kolkata
 
-  EXAMPLE (/etc/profile.d/myapp.sh):
-    export APP_HOME=/opt/myapp
-    export PATH="$APP_HOME/bin:$PATH"
+ APPLY
+ -----
+   # Reload without logging out (current shell only)
+   $ set -a; source /etc/environment; set +a
 
-    if [ "$(hostname)" = "prod-server" ]; then
-        export DB_HOST=db.prod.internal
-    else
-        export DB_HOST=db.dev.internal
-    fi
+   # Verify
+   $ echo $JAVA_HOME
 
-  USE WHEN: You need system-wide vars that depend on logic,
-            hostname, OS version, etc.
+ USE WHEN: You need a simple, unchanging system-wide value.
 
-────────────────────────────────────────────────────────────────
-3. ~/.bash_profile  →  Per-user, login shells only
-────────────────────────────────────────────────────────────────
-  - Sourced only for the specific user, on login.
-  - Full scripting support.
-  - Not read by cron jobs or systemd services.
 
-  EXAMPLE (~/.bash_profile):
-    export GOPATH="$HOME/go"
-    export PATH="$GOPATH/bin:$PATH"
-    export EDITOR=vim
+----------------------------------------------------------------
+ 2.  /etc/profile.d/custom.sh          [RECOMMENDED]
+     Global | Flexible | Supports scripting
+----------------------------------------------------------------
 
-  USE WHEN: A developer needs personal tool paths or overrides
-            that shouldn't affect other users.
+ What it does : Every *.sh file here is sourced for all login
+               shells. One file per concern -- easy to manage.
+ Syntax       : Full bash -- export, conditionals, functions.
+ Takes effect : Next login, or source manually (see below).
 
-────────────────────────────────────────────────────────────────
-  QUICK DECISION GUIDE
-────────────────────────────────────────────────────────────────
+ EXAMPLE  (/etc/profile.d/myapp.sh)
+ -----------------------------------
+   export APP_HOME=/opt/myapp
+   export PATH="$APP_HOME/bin:$PATH"
 
-  Global + static (no logic)?         →  /etc/environment
-  Global + needs logic/conditionals?  →  /etc/profile.d/custom.sh
-  User-specific override?             →  ~/.bash_profile
+   if [ "$(hostname)" = "prod-server" ]; then
+       export DB_HOST=db.prod.internal
+   else
+       export DB_HOST=db.dev.internal
+   fi
 
-────────────────────────────────────────────────────────────────
-  ⚠ AVOID .bashrc FOR PERSISTENT VARS
-────────────────────────────────────────────────────────────────
+ APPLY
+ -----
+   # Make executable (first time only)
+   $ sudo chmod +x /etc/profile.d/myapp.sh
+
+   # Reload current shell immediately
+   $ source /etc/profile.d/myapp.sh
+
+   # Or reload all profile.d scripts at once
+   $ source /etc/profile
+
+   # Verify
+   $ echo $APP_HOME
+   $ echo $DB_HOST
+
+ USE WHEN: You need system-wide vars with logic or conditions.
+
+
+----------------------------------------------------------------
+ 3.  ~/.bash_profile
+     User-specific | Login shells only
+----------------------------------------------------------------
+
+ What it does : Sourced only for the current user on login.
+               Does NOT affect other users or system services.
+ Syntax       : Full bash -- export, conditionals, aliases.
+ Takes effect : Next login, or source manually (see below).
+
+ EXAMPLE  (~/.bash_profile)
+ ---------------------------
+   export GOPATH="$HOME/go"
+   export PATH="$GOPATH/bin:$PATH"
+   export EDITOR=vim
+
+ APPLY
+ -----
+   # Reload current shell immediately (no logout needed)
+   $ source ~/.bash_profile
+
+   # Verify
+   $ echo $GOPATH
+   $ echo $PATH
+
+ USE WHEN: Personal overrides that should not affect others.
+
+
+================================================================
+ QUICK DECISION GUIDE
+================================================================
+
+  Scenario                              Use
+  ------------------------------------  ------------------------
+  Global + simple constant?             /etc/environment
+  Global + needs logic/conditions?      /etc/profile.d/custom.sh
+  User-specific override?               ~/.bash_profile
+
+
+================================================================
+ UNIVERSAL: VERIFY ANY VARIABLE
+================================================================
+
+  # Check a single variable
+  $ printenv MY_VAR
+
+  # List all environment variables
+  $ printenv
+
+  # Check what a login shell sees
+  $ bash -l -c 'echo $MY_VAR'
+
+  # Simulate what cron / systemd services see (clean env)
+  $ env -i bash --login -c 'echo $MY_VAR'
+
+
+================================================================
+ WARNING: DO NOT USE .bashrc FOR PERSISTENT VARIABLES
+================================================================
+
   .bashrc is sourced only by interactive non-login shells.
-  Cron jobs, systemd services, and SSH commands will NOT see
-  variables defined there.
+  Cron jobs, systemd services, and SSH commands will NOT
+  inherit variables defined there.
 
-  BAD  (in .bashrc):  export DB_PASS=secret   ← cron won't see this
-  GOOD (in profile.d): export DB_PASS=secret  ← available everywhere
+  WRONG   -> in ~/.bashrc   : export DB_PASS=secret
+  CORRECT -> in profile.d/  : export DB_PASS=secret
 
-────────────────────────────────────────────────────────────────
-  HOW TO APPLY CHANGES
-────────────────────────────────────────────────────────────────
-
-  1. /etc/environment
-  ─────────────────
-  Changes take effect only after a full logout/login.
-  To test immediately in the current shell without logging out:
-
-    $ set -a; source /etc/environment; set +a
-
-  Verify:
-    $ echo $JAVA_HOME
-
-  ─────────────────────────────────────────────────────────────
-
-  2. /etc/profile.d/custom.sh
-  ────────────────────────────
-  After saving the file, make it executable (first time only):
-
-    $ sudo chmod +x /etc/profile.d/myapp.sh
-
-  Apply to the current shell immediately:
-
-    $ source /etc/profile.d/myapp.sh
-
-  Or re-source all profile.d scripts at once:
-
-    $ source /etc/profile
-
-  Verify:
-    $ echo $APP_HOME
-    $ echo $DB_HOST
-
-  ─────────────────────────────────────────────────────────────
-
-  3. ~/.bash_profile
-  ───────────────────
-  Apply to the current shell immediately (no logout needed):
-
-    $ source ~/.bash_profile
-
-  Verify:
-    $ echo $GOPATH
-    $ echo $PATH
-
-  ─────────────────────────────────────────────────────────────
-
-  VERIFY ANY VARIABLE (universal)
-  ────────────────────────────────
-  Check if a variable is set:
-    $ printenv MY_VAR
-
-  List all current environment variables:
-    $ printenv
-
-  Check where a variable was set (login shells):
-    $ bash -l -c 'echo $MY_VAR'
-
-  Check if a service/cron will see it (uses a clean environment):
-    $ env -i bash --login -c 'echo $MY_VAR'
 
 ================================================================
