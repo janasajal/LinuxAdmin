@@ -1,3 +1,4 @@
+```
 Resetting root password by booting into Single User Mode
 Step-1: Reboot your system and interrupt the 'GRUB 2' boot screen by hitting 'e' key.
 ## N.B.: Please do not select rescue mode. Select the grub which is used to load OS (Default one).
@@ -11,4 +12,6 @@ To crosscheck
 # passwd root
 # touch /.autorelabel
 N.B.: If selinux is disabled then touch /. autorelabel is not required
+```
 
+<img width="1576" height="531" alt="Screenshot 2026-05-03 204846" src="https://github.com/user-attachments/assets/4fb05992-fd2c-483b-b21e-828bcf2e2f43" />
