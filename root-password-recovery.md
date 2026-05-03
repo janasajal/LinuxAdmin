@@ -14,4 +14,4 @@ To crosscheck
 N.B.: If selinux is disabled then touch /. autorelabel is not required
 ```
 
-<img width="1576" height="531" alt="Screenshot 2026-05-03 204846" src="https://github.com/user-attachments/assets/4fb05992-fd2c-483b-b21e-828bcf2e2f43" />
+<img width="1412" height="222" alt="image" src="https://github.com/user-attachments/assets/5212a309-e381-4302-a1cd-b8b4c67c0222" />
