@@ -1,7 +1,11 @@
 find /path/to/files* -mtime +5 -exec rm {} \;
 
- -mtime, is used to specify the number of days old that the file is. If you enter +5, it will find files older than 5 days.
- -exec, allows you to pass in a command such as rm. The {} \; at the end is required to end the command.
+ -mtime, is used to specify the number of days old that the file is.
+-mtime n → files modified exactly n days ago
+-mtime -n → files modified within last n days
+-mtime +n → files modified more than n days ago
+
+ -exec runs a command on each file found by find, where {} is the file(placeholder for the current file found) and \; ends the command.
 
 Get list of files which are older than 5 days.
 
