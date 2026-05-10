@@ -661,7 +661,3 @@ Set vCPUs                         virsh setvcpus <vm> <count> --live
 Set memory                        virsh setmem <vm> <kib> --live
 Enable autostart                  virsh autostart <vmname>
 Undefine VM                       virsh undefine <vmname>
-
-================================================================================
-  Generated for: KVM Admin Reference | Host: prod-hypervisor | Date: 2024-05-10
-================================================================================
