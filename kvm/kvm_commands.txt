@@ -1,0 +1,667 @@
+================================================================================
+          Kernel-based Virtual Machine (KVM) 
+================================================================================
+
+--------------------------------------------------------------------------------
+1. CHECK KVM / VIRTUALIZATION SUPPORT
+--------------------------------------------------------------------------------
+
+[root@prod-hypervisor ~]# egrep -c '(vmx|svm)' /proc/cpuinfo
+32
+
+[root@prod-hypervisor ~]# lsmod | grep kvm
+kvm_intel             364544  6
+kvm                  1032192  1 kvm_intel
+irqbypass              16384  1 kvm
+
+[root@prod-hypervisor ~]# virt-host-validate
+  QEMU: Checking for hardware virtualization                                 : PASS
+  QEMU: Checking if device /dev/kvm exists                                   : PASS
+  QEMU: Checking if device /dev/kvm is accessible                            : PASS
+  QEMU: Checking if device /dev/vhost-net exists                             : PASS
+  QEMU: Checking if device /dev/net/tun exists                               : PASS
+   LXC: Checking for Linux >= 2.6.26                                         : PASS
+
+--------------------------------------------------------------------------------
+2. LIST VIRTUAL MACHINES
+--------------------------------------------------------------------------------
+
+# List running VMs
+[root@prod-hypervisor ~]# virsh list
+ Id   Name                State
+------------------------------------
+ 1    prod-web-01         running
+ 2    prod-db-01          running
+ 5    prod-app-02         running
+ 8    dev-test-01         running
+
+# List all VMs (including stopped)
+[root@prod-hypervisor ~]# virsh list --all
+ Id   Name                State
+------------------------------------
+ 1    prod-web-01         running
+ 2    prod-db-01          running
+ 5    prod-app-02         running
+ 8    dev-test-01         running
+ -    prod-backup-01      shut off
+ -    staging-web-01      shut off
+ -    old-dev-vm          shut off
+
+--------------------------------------------------------------------------------
+3. START / STOP / REBOOT VMs
+--------------------------------------------------------------------------------
+
+# Start a VM
+[root@prod-hypervisor ~]# virsh start prod-backup-01
+Domain 'prod-backup-01' started
+
+# Graceful shutdown
+[root@prod-hypervisor ~]# virsh shutdown prod-web-01
+Domain 'prod-web-01' is being shutdown
+
+# Force off (like pulling power)
+[root@prod-hypervisor ~]# virsh destroy dev-test-01
+Domain 'dev-test-01' destroyed
+
+# Reboot
+[root@prod-hypervisor ~]# virsh reboot prod-app-02
+Domain 'prod-app-02' is being rebooted
+
+
+--------------------------------------------------------------------------------
+4. VM INFORMATION & DETAILS
+--------------------------------------------------------------------------------
+
+# Show VM info
+[root@prod-hypervisor ~]# virsh dominfo prod-web-01
+Id:             1
+Name:           prod-web-01
+UUID:           a3f7c2d1-4b89-4e23-bc12-9f1e8a2d5c67
+OS Type:        hvm
+State:          running
+CPU(s):         4
+CPU time:       12345.6s
+Max memory:     8388608 KiB
+Used memory:    8388608 KiB
+Persistent:     yes
+Autostart:      enable
+Managed save:   no
+Security model: selinux
+Security DOI:   0
+Security label: system_u:system_r:svirt_t:s0:c123,c456 (enforcing)
+
+# Show VM stats
+[root@prod-hypervisor ~]# virsh domstats prod-web-01
+Domain: 'prod-web-01'
+  state.state=1
+  state.reason=1
+  cpu.time=12345678901234
+  cpu.user=9876543210000
+  cpu.system=2469135680000
+  balloon.current=8388608
+  balloon.maximum=8388608
+  vcpu.current=4
+  vcpu.maximum=4
+  vcpu.0.state=1
+  vcpu.0.time=3086419720000
+  net.count=1
+  net.0.name=vnet0
+  net.0.rx.bytes=1234567890
+  net.0.rx.pkts=9876543
+  net.0.tx.bytes=987654321
+  net.0.tx.pkts=7654321
+  block.count=2
+  block.0.name=vda
+  block.0.rd.reqs=123456
+  block.0.rd.bytes=1234567890
+  block.0.wr.reqs=654321
+  block.0.wr.bytes=9876543210
+
+# Show vCPU info
+[root@prod-hypervisor ~]# virsh vcpuinfo prod-web-01
+VCPU:           0
+CPU:            3
+State:          running
+CPU time:       3086.4s
+CPU Affinity:   yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+
+VCPU:           1
+CPU:            7
+State:          running
+CPU time:       3086.4s
+CPU Affinity:   yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+
+# Display VM XML config
+[root@prod-hypervisor ~]# virsh dumpxml prod-web-01
+<domain type='kvm' id='1'>
+  <name>prod-web-01</name>
+  <uuid>a3f7c2d1-4b89-4e23-bc12-9f1e8a2d5c67</uuid>
+  <memory unit='KiB'>8388608</memory>
+  <currentMemory unit='KiB'>8388608</currentMemory>
+  <vcpu placement='static'>4</vcpu>
+  <os>
+    <type arch='x86_64' machine='pc-i440fx-rhel7.0.0'>hvm</type>
+    <boot dev='hd'/>
+  </os>
+  ...
+</domain>
+
+--------------------------------------------------------------------------------
+5. CPU & MEMORY MANAGEMENT
+--------------------------------------------------------------------------------
+
+# Set vCPUs (hot-plug, VM must support it)
+[root@prod-hypervisor ~]# virsh setvcpus prod-web-01 6 --live
+[root@prod-hypervisor ~]# virsh setvcpus prod-web-01 6 --config
+
+# Set max vCPUs (persistent)
+[root@prod-hypervisor ~]# virsh setvcpus prod-web-01 8 --maximum --config
+
+# Set memory (live)
+[root@prod-hypervisor ~]# virsh setmem prod-web-01 10485760 --live
+[root@prod-hypervisor ~]# virsh setmem prod-web-01 10485760 --config
+
+# Set max memory (requires VM restart)
+[root@prod-hypervisor ~]# virsh setmaxmem prod-web-01 16777216 --config
+
+# Pin vCPU to physical CPU
+[root@prod-hypervisor ~]# virsh vcpupin prod-web-01 0 2
+[root@prod-hypervisor ~]# virsh vcpupin prod-web-01 1 3
+
+# Check CPU pinning
+[root@prod-hypervisor ~]# virsh vcpupin prod-web-01
+ VCPU   CPU Affinity
+----------------------
+ 0      2
+ 1      3
+ 2      4-5
+ 3      6-7
+
+--------------------------------------------------------------------------------
+6. SNAPSHOT MANAGEMENT
+--------------------------------------------------------------------------------
+
+# Create snapshot
+[root@prod-hypervisor ~]# virsh snapshot-create-as prod-web-01 \
+  --name "snap-before-patching-2024-05-10" \
+  --description "Before OS patching May 2024" \
+  --atomic
+Domain snapshot snap-before-patching-2024-05-10 created
+
+# List snapshots
+[root@prod-hypervisor ~]# virsh snapshot-list prod-web-01
+ Name                            Creation Time               State
+------------------------------------------------------------------------
+ snap-before-patching-2024-05-10  2024-05-10 09:15:32 +0530   running
+ snap-initial-setup               2024-03-01 14:22:10 +0530   shutoff
+ snap-post-deploy-v2              2024-04-20 11:05:44 +0530   running
+
+# Show snapshot info
+[root@prod-hypervisor ~]# virsh snapshot-info prod-web-01 snap-before-patching-2024-05-10
+Name:           snap-before-patching-2024-05-10
+Domain:         prod-web-01
+Current:        yes
+State:          running
+Location:       internal
+Parent:         snap-post-deploy-v2
+Children:       0
+Descendants:    0
+Metadata:       yes
+
+# Revert to snapshot
+[root@prod-hypervisor ~]# virsh snapshot-revert prod-web-01 snap-before-patching-2024-05-10
+[root@prod-hypervisor ~]# virsh snapshot-revert prod-web-01 snap-initial-setup --running
+
+# Delete snapshot
+[root@prod-hypervisor ~]# virsh snapshot-delete prod-web-01 snap-initial-setup
+Domain snapshot snap-initial-setup deleted
+
+--------------------------------------------------------------------------------
+7. DISK / STORAGE MANAGEMENT
+--------------------------------------------------------------------------------
+
+# List VM disk info
+[root@prod-hypervisor ~]# virsh domblklist prod-web-01
+ Target   Source
+-------------------------------------------------
+ vda      /var/lib/libvirt/images/prod-web-01.qcow2
+ vdb      /var/lib/libvirt/images/prod-web-01-data.qcow2
+ sda      -
+
+# Check disk I/O stats
+[root@prod-hypervisor ~]# virsh domblkstat prod-web-01 vda
+prod-web-01 vda:
+        rd_req   123456
+        rd_bytes 1264156672
+        wr_req   654321
+        wr_bytes 9876543210
+        flush_operations 98765
+        rd_total_times 12345678901
+        wr_total_times 98765432100
+        flush_total_times 987654321
+
+# Create new qcow2 disk image
+[root@prod-hypervisor ~]# qemu-img create -f qcow2 /var/lib/libvirt/images/prod-web-01-data.qcow2 100G
+Formatting '/var/lib/libvirt/images/prod-web-01-data.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off compression_type=zlib size=107374182400 lazy_refcounts=off refcount_bits=16
+
+# Check disk image info
+[root@prod-hypervisor ~]# qemu-img info /var/lib/libvirt/images/prod-web-01.qcow2
+image: /var/lib/libvirt/images/prod-web-01.qcow2
+file format: qcow2
+virtual size: 200 GiB (214748364800 bytes)
+disk size: 42.3 GiB
+cluster_size: 65536
+Snapshot list:
+ID        TAG                          VM SIZE                DATE     VM CLOCK
+1         snap-before-patching-2024    8.00 GiB 2024-05-10 09:15:32   02:15:34.123
+backing file: base-rhel8.qcow2
+backing file format: qcow2
+Format specific information:
+    compat: 1.1
+    compression type: zlib
+    lazy refcounts: false
+    refcount bits: 16
+    corrupt: false
+    extended l2: false
+
+# Resize disk (offline only for shrink)
+[root@prod-hypervisor ~]# qemu-img resize /var/lib/libvirt/images/prod-web-01.qcow2 +50G
+Image resized.
+
+# Attach a disk to running VM
+[root@prod-hypervisor ~]# virsh attach-disk prod-web-01 \
+  /var/lib/libvirt/images/prod-web-01-data.qcow2 \
+  vdb \
+  --driver qemu \
+  --subdriver qcow2 \
+  --live \
+  --config
+Disk attached successfully
+
+# Detach a disk
+[root@prod-hypervisor ~]# virsh detach-disk prod-web-01 vdb --live --config
+Disk detached successfully
+
+# Convert disk format (raw to qcow2)
+[root@prod-hypervisor ~]# qemu-img convert -f raw -O qcow2 \
+  /var/lib/libvirt/images/old-vm.img \
+  /var/lib/libvirt/images/old-vm.qcow2
+[root@prod-hypervisor ~]# ls -lh /var/lib/libvirt/images/old-vm.qcow2
+-rw-r--r-- 1 root root 18G May 10 09:32 /var/lib/libvirt/images/old-vm.qcow2
+
+--------------------------------------------------------------------------------
+8. NETWORK MANAGEMENT
+--------------------------------------------------------------------------------
+
+# List virtual networks
+[root@prod-hypervisor ~]# virsh net-list --all
+ Name        State    Autostart   Persistent
+----------------------------------------------
+ default     active   yes         yes
+ prod-net    active   yes         yes
+ mgmt-net    active   yes         yes
+ isolated    inactive no          yes
+
+# Show network info
+[root@prod-hypervisor ~]# virsh net-info prod-net
+Name:           prod-net
+UUID:           b7e2a1f3-8c94-4d56-ae78-1234567890ab
+Active:         yes
+Persistent:     yes
+Autostart:      yes
+Bridge:         virbr1
+
+# Show network XML
+[root@prod-hypervisor ~]# virsh net-dumpxml prod-net
+<network>
+  <name>prod-net</name>
+  <uuid>b7e2a1f3-8c94-4d56-ae78-1234567890ab</uuid>
+  <forward mode='nat'/>
+  <bridge name='virbr1' stp='on' delay='0'/>
+  <mac address='52:54:00:ab:cd:ef'/>
+  <ip address='192.168.100.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.100.100' end='192.168.100.200'/>
+    </dhcp>
+  </ip>
+</network>
+
+# List VM network interfaces
+[root@prod-hypervisor ~]# virsh domiflist prod-web-01
+ Interface   Type     Source     Model    MAC
+--------------------------------------------------------------
+ vnet0       bridge   virbr1     virtio   52:54:00:12:34:56
+ vnet1       bridge   virbr0     virtio   52:54:00:ab:cd:ef
+
+# Check NIC stats
+[root@prod-hypervisor ~]# virsh domifstat prod-web-01 vnet0
+prod-web-01 vnet0 rx_bytes 1234567890
+prod-web-01 vnet0 rx_packets 9876543
+prod-web-01 vnet0 rx_errs 0
+prod-web-01 vnet0 rx_drop 12
+prod-web-01 vnet0 tx_bytes 987654321
+prod-web-01 vnet0 tx_packets 7654321
+prod-web-01 vnet0 tx_errs 0
+prod-web-01 vnet0 tx_drop 0
+
+# Attach network interface to running VM
+[root@prod-hypervisor ~]# virsh attach-interface prod-web-01 \
+  --type bridge \
+  --source virbr1 \
+  --model virtio \
+  --live \
+  --config
+Interface attached successfully
+
+# Start/Stop a virtual network
+[root@prod-hypervisor ~]# virsh net-start isolated
+Network isolated started
+
+[root@prod-hypervisor ~]# virsh net-destroy isolated
+Network isolated destroyed
+
+--------------------------------------------------------------------------------
+9. CLONE & MIGRATE VMs
+--------------------------------------------------------------------------------
+
+# Clone a VM (VM must be shut off)
+[root@prod-hypervisor ~]# virsh shutdown prod-web-01
+Domain 'prod-web-01' is being shutdown
+
+[root@prod-hypervisor ~]# virt-clone \
+  --original prod-web-01 \
+  --name prod-web-02 \
+  --file /var/lib/libvirt/images/prod-web-02.qcow2
+Allocating 'prod-web-02.qcow2'  | 200 GB  00:01:23
+
+Clone 'prod-web-02' created successfully.
+
+# Live migrate VM to another hypervisor
+[root@prod-hypervisor ~]# virsh migrate --live prod-web-01 \
+  qemu+ssh://prod-hypervisor-02/system \
+  --verbose
+Migration: [ 11 %]
+Migration: [ 23 %]
+Migration: [ 47 %]
+Migration: [ 68 %]
+Migration: [ 84 %]
+Migration: [ 100 %]
+
+# Migrate with storage (for non-shared storage)
+[root@prod-hypervisor ~]# virsh migrate --live --copy-storage-all prod-web-01 \
+  qemu+ssh://prod-hypervisor-02/system \
+  --verbose
+
+# Check migration status
+[root@prod-hypervisor ~]# virsh domjobinfo prod-web-01
+Job type:         Unbounded
+Operation:        Live migration
+Time elapsed:     15234 ms
+Data processed:   8.192 GiB
+Data remaining:   512.000 MiB
+Data total:       8.192 GiB
+Memory processed: 8.192 GiB
+Memory remaining: 512.000 MiB
+Memory total:     8.192 GiB
+Memory bandwidth: 550.432 MiB/s
+Dirty rate:       45 pages/s
+Iteration:        3
+Constant pages:   8323744
+Normal pages:     2098175
+Normal data:      8.000 GiB
+Expected downtime: 95 ms
+
+--------------------------------------------------------------------------------
+10. CONSOLE ACCESS
+--------------------------------------------------------------------------------
+
+# Connect to VM console
+[root@prod-hypervisor ~]# virsh console prod-web-01
+Connected to domain 'prod-web-01'
+Escape character is ^] (Ctrl + ])
+
+CentOS Linux 8 (Core)
+Kernel 4.18.0-348.el8.x86_64 on an x86_64
+
+prod-web-01 login:
+
+# (Press Ctrl+] to exit console)
+
+# Open VNC viewer for VM
+[root@prod-hypervisor ~]# virsh vncdisplay prod-web-01
+:1
+
+# Get VNC port
+[root@prod-hypervisor ~]# virsh domdisplay prod-web-01
+vnc://127.0.0.1:5901
+
+--------------------------------------------------------------------------------
+11. VM XML EDIT & CONFIG
+--------------------------------------------------------------------------------
+
+# Edit VM XML config (live editor)
+[root@prod-hypervisor ~]# virsh edit prod-web-01
+# (Opens $EDITOR - save and exit to apply changes on next boot)
+Domain 'prod-web-01' XML configuration edited.
+
+# Define a new VM from XML file
+[root@prod-hypervisor ~]# virsh define /tmp/new-vm.xml
+Domain 'new-prod-vm' defined from /tmp/new-vm.xml
+
+# Undefine (delete) a VM (does NOT delete disk)
+[root@prod-hypervisor ~]# virsh undefine old-dev-vm
+Domain 'old-dev-vm' has been undefined
+
+# Undefine VM and remove all storage
+[root@prod-hypervisor ~]# virsh undefine old-dev-vm --remove-all-storage
+Vol /var/lib/libvirt/images/old-dev-vm.qcow2 deleted.
+Domain 'old-dev-vm' has been undefined
+
+--------------------------------------------------------------------------------
+12. STORAGE POOL MANAGEMENT
+--------------------------------------------------------------------------------
+
+# List storage pools
+[root@prod-hypervisor ~]# virsh pool-list --all
+ Name                 State    Autostart
+-----------------------------------------
+ default              active   yes
+ fast-ssd             active   yes
+ backup-nfs           active   yes
+ iso-images           active   yes
+
+# Show pool info
+[root@prod-hypervisor ~]# virsh pool-info default
+Name:           default
+UUID:           c1d2e3f4-a5b6-7890-abcd-ef1234567890
+State:          running
+Persistent:     yes
+Autostart:      yes
+Capacity:       9.09 TiB
+Allocation:     4.32 TiB
+Available:      4.77 TiB
+
+# List volumes in a pool
+[root@prod-hypervisor ~]# virsh vol-list default
+ Name                              Path
+--------------------------------------------------------------------
+ prod-web-01.qcow2                 /var/lib/libvirt/images/prod-web-01.qcow2
+ prod-web-02.qcow2                 /var/lib/libvirt/images/prod-web-02.qcow2
+ prod-db-01.qcow2                  /var/lib/libvirt/images/prod-db-01.qcow2
+ prod-app-02.qcow2                 /var/lib/libvirt/images/prod-app-02.qcow2
+ rhel8-base.qcow2                  /var/lib/libvirt/images/rhel8-base.qcow2
+
+# Refresh pool (after manual changes)
+[root@prod-hypervisor ~]# virsh pool-refresh default
+Pool default refreshed
+
+--------------------------------------------------------------------------------
+13. HOST RESOURCE MONITORING
+--------------------------------------------------------------------------------
+
+# Node (hypervisor) info
+[root@prod-hypervisor ~]# virsh nodeinfo
+CPU model:           x86_64
+CPU(s):              64
+CPU frequency:       3400 MHz
+CPU socket(s):       2
+Core(s) per socket:  16
+Thread(s) per core:  2
+NUMA cell(s):        2
+Memory size:         263823360 KiB
+
+# Memory stats of a VM
+[root@prod-hypervisor ~]# virsh dommemstat prod-web-01
+actual 8388608
+swap_in 0
+swap_out 0
+major_fault 158
+minor_fault 4782610
+unused 4194304
+available 8388608
+usable 4194304
+last_update 1715334912
+disk_caches 1048576
+hugetlb_pgalloc 0
+hugetlb_pgfail 0
+rss 8523776
+
+# Top-like view of all VMs
+[root@prod-hypervisor ~]# virt-top
+virt-top 09:45:01 - x86_64 64/64CPU 3400MHz 257644MB
+18 domains, 4 active, 14 sleeping, 0 paused, 0 crashed, 0 dying, 0 idle
+CPU: 3.2%  Mem: 32768 MB
+
+   ID S RDRQ WRRQ RXBY TXBY %CPU %MEM    TIME   NAME
+    1 R  145   82  15k 7.2k  1.2  3.1 03:26:15 prod-web-01
+    2 R   89   45   8k 3.1k  0.8  6.2 08:12:43 prod-db-01
+    5 R   56   23   4k 1.2k  0.4  3.1 01:45:22 prod-app-02
+    8 R   12    5 512  256   0.1  1.6 00:23:11 dev-test-01
+
+# Check NUMA topology
+[root@prod-hypervisor ~]# virsh capabilities | grep -A 5 'topology'
+      <topology sockets='2' dies='1' cores='16' threads='2'/>
+
+--------------------------------------------------------------------------------
+14. LIBVIRT SERVICE MANAGEMENT
+--------------------------------------------------------------------------------
+
+# Check libvirtd status
+[root@prod-hypervisor ~]# systemctl status libvirtd
+● libvirtd.service - Virtualization daemon
+     Loaded: loaded (/usr/lib/systemd/system/libvirtd.service; enabled; vendor preset: enabled)
+     Active: active (running) since Fri 2024-05-10 07:00:01 IST; 2h 45min ago
+       Docs: man:libvirtd(8)
+             https://libvirt.org
+   Main PID: 1234 (libvirtd)
+      Tasks: 19 (limit: 32768)
+     Memory: 87.2 M
+     CGroup: /system.slice/libvirtd.service
+             └─1234 /usr/sbin/libvirtd
+
+May 10 07:00:01 prod-hypervisor systemd[1]: Starting Virtualization daemon...
+May 10 07:00:01 prod-hypervisor systemd[1]: Started Virtualization daemon.
+
+# Restart libvirtd
+[root@prod-hypervisor ~]# systemctl restart libvirtd
+
+# Connect to remote hypervisor
+[root@prod-hypervisor ~]# virsh -c qemu+ssh://prod-hypervisor-02/system list --all
+ Id   Name                State
+------------------------------------
+ 3    staging-web-01      running
+ 4    staging-db-01       running
+ -    old-staging-vm      shut off
+
+--------------------------------------------------------------------------------
+15. USEFUL ONE-LINERS
+--------------------------------------------------------------------------------
+
+# Shutdown all running VMs gracefully
+[root@prod-hypervisor ~]# for vm in $(virsh list --name); do virsh shutdown $vm; done
+Domain 'prod-web-01' is being shutdown
+Domain 'prod-db-01' is being shutdown
+Domain 'prod-app-02' is being shutdown
+Domain 'dev-test-01' is being shutdown
+
+# Get IP of all running VMs
+[root@prod-hypervisor ~]# for vm in $(virsh list --name); do \
+  echo -n "$vm: "; \
+  virsh domifaddr $vm 2>/dev/null | awk '/ipv4/{print $4}'; \
+done
+prod-web-01: 192.168.100.101/24
+prod-db-01: 192.168.100.102/24
+prod-app-02: 192.168.100.105/24
+dev-test-01: 192.168.100.108/24
+
+# Backup all VM configs (XMLs)
+[root@prod-hypervisor ~]# for vm in $(virsh list --all --name); do \
+  virsh dumpxml $vm > /backup/xml/${vm}.xml; \
+done
+[root@prod-hypervisor ~]# ls /backup/xml/
+dev-test-01.xml  old-dev-vm.xml  prod-app-02.xml  prod-backup-01.xml
+prod-db-01.xml   prod-web-01.xml  staging-web-01.xml
+
+# Find which host disk a VM uses
+[root@prod-hypervisor ~]# virsh domblklist prod-web-01 --details
+ Type       Device     Target   Source
+----------------------------------------------------------------------
+ file       disk       vda      /var/lib/libvirt/images/prod-web-01.qcow2
+ file       disk       vdb      /var/lib/libvirt/images/prod-web-01-data.qcow2
+ file       cdrom      sda      -
+
+# Total disk usage of all VM images
+[root@prod-hypervisor ~]# du -sh /var/lib/libvirt/images/*
+ 18G    /var/lib/libvirt/images/prod-web-01.qcow2
+ 42G    /var/lib/libvirt/images/prod-db-01.qcow2
+ 11G    /var/lib/libvirt/images/prod-app-02.qcow2
+5.3G    /var/lib/libvirt/images/dev-test-01.qcow2
+3.7G    /var/lib/libvirt/images/rhel8-base.qcow2
+
+# Check if VM supports memory ballooning
+[root@prod-hypervisor ~]# virsh dumpxml prod-web-01 | grep -A2 memballoon
+    <memballoon model='virtio'>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x06' function='0x0'/>
+    </memballoon>
+
+--------------------------------------------------------------------------------
+QUICK REFERENCE TABLE
+--------------------------------------------------------------------------------
+
+TASK                              COMMAND
+--------------------------------  ------------------------------------------------
+List running VMs                  virsh list
+List all VMs                      virsh list --all
+Start VM                          virsh start <vmname>
+Stop VM (graceful)                virsh shutdown <vmname>
+Force off VM                      virsh destroy <vmname>
+Reboot VM                         virsh reboot <vmname>
+VM details                        virsh dominfo <vmname>
+VM XML config                     virsh dumpxml <vmname>
+Edit VM config                    virsh edit <vmname>
+Create snapshot                   virsh snapshot-create-as <vm> <snapname>
+List snapshots                    virsh snapshot-list <vmname>
+Revert snapshot                   virsh snapshot-revert <vm> <snapname>
+Delete snapshot                   virsh snapshot-delete <vm> <snapname>
+Clone VM                          virt-clone --original <vm> --name <new>
+Live migrate VM                   virsh migrate --live <vm> qemu+ssh://<host>/system
+Console access                    virsh console <vmname>
+List networks                     virsh net-list --all
+List storage pools                virsh pool-list --all
+List volumes in pool              virsh vol-list <poolname>
+Disk image info                   qemu-img info <image.qcow2>
+Create disk image                 qemu-img create -f qcow2 <path> <size>
+Resize disk image                 qemu-img resize <image.qcow2> +<size>
+Convert disk format               qemu-img convert -f raw -O qcow2 <src> <dst>
+Hypervisor node info              virsh nodeinfo
+Attach disk                       virsh attach-disk <vm> <src> <target> --live
+Detach disk                       virsh detach-disk <vm> <target> --live
+Attach NIC                        virsh attach-interface <vm> --type bridge
+Set vCPUs                         virsh setvcpus <vm> <count> --live
+Set memory                        virsh setmem <vm> <kib> --live
+Enable autostart                  virsh autostart <vmname>
+Undefine VM                       virsh undefine <vmname>
+
+================================================================================
+  Generated for: KVM Admin Reference | Host: prod-hypervisor | Date: 2024-05-10
+================================================================================
