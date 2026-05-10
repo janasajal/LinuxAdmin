@@ -661,3 +661,13 @@ Set vCPUs                         virsh setvcpus <vm> <count> --live
 Set memory                        virsh setmem <vm> <kib> --live
 Enable autostart                  virsh autostart <vmname>
 Undefine VM                       virsh undefine <vmname>
+
+```
+| Command      | Meaning            |
+| ------------ | ------------------ |
+| `dominfo`    | VM information     |
+| `domstate`   | VM state           |
+| `domiflist`  | VM interfaces      |
+| `domblklist` | VM block devices   |
+| `domfsinfo`  | VM filesystem info |
+```
