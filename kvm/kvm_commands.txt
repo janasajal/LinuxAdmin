@@ -671,3 +671,4 @@ Undefine VM                       virsh undefine <vmname>
 | `domblklist` | VM block devices   |
 | `domfsinfo`  | VM filesystem info |
 ```
+virsh modify_command vm_name --config to make it persistant accross reboot.
