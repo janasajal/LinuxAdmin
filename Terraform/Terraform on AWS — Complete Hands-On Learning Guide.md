@@ -1,9 +1,9 @@
 # Terraform on AWS — Complete Hands-On Learning Guide
 
-**Author:** Sajal Jana  
-**Environment:** RHEL 9.6 on AWS EC2 (ap-south-1 / Mumbai)  
-**Terraform Version:** v1.14.6  
-**AWS Provider Version:** hashicorp/aws v6.35.1  
+**Author:** Sajal Jana
+**Environment:** RHEL 9.6 on AWS EC2 (ap-south-1 / Mumbai)
+**Terraform Version:** v1.14.6
+**AWS Provider Version:** hashicorp/aws v6.35.1
 
 ---
 
@@ -37,10 +37,11 @@
 Terraform is an **Infrastructure as Code (IaC)** tool by HashiCorp. It lets you define, provision, and manage cloud infrastructure using human-readable configuration files.
 
 **Why Terraform?**
-- Declarative — you describe *what* you want, Terraform figures out *how*
-- Cloud-agnostic — works with AWS, Azure, GCP, and 1000+ providers
-- State-aware — tracks exactly what exists in your cloud account
-- Plan before apply — preview changes before making them
+
+- **Declarative** — you describe *what* you want, Terraform figures out *how*
+- **Cloud-agnostic** — works with AWS, Azure, GCP, and 1000+ providers
+- **State-aware** — tracks exactly what exists in your cloud account
+- **Plan before apply** — preview changes before making them
 
 ---
 
@@ -61,6 +62,7 @@ terraform -version
 ```
 
 **Expected output:**
+
 ```
 Terraform v1.14.6
 on linux_amd64
@@ -106,6 +108,13 @@ Default region name:    ap-south-1
 Default output format:  json
 ```
 
+Credentials are stored at:
+
+```
+~/.aws/credentials     ← Access Key + Secret Key
+~/.aws/config          ← Region + output format
+```
+
 ### Verify credentials:
 
 ```bash
@@ -113,6 +122,7 @@ aws sts get-caller-identity
 ```
 
 **Expected output:**
+
 ```json
 {
     "UserId": "AIDA...",
@@ -159,9 +169,13 @@ mkdir ~/terraform-learning
 cd ~/terraform-learning
 ```
 
-### `main.tf` — basic structure:
+### File: `~/terraform-learning/main.tf`
+
+This is the root configuration file. It declares the AWS provider and defines your first resource.
 
 ```hcl
+# ~/terraform-learning/main.tf
+
 # Tell Terraform which provider to use
 provider "aws" {
   region = "ap-south-1"
@@ -182,12 +196,26 @@ resource "aws_s3_bucket" "my_first_bucket" {
 ### Run it:
 
 ```bash
-terraform init    # downloads AWS provider plugin
+cd ~/terraform-learning
+terraform init    # downloads AWS provider plugin → creates ~/terraform-learning/.terraform/
 terraform plan    # preview what will be created
 terraform apply   # create the bucket (type 'yes' to confirm)
 ```
 
+After `terraform init`, your directory looks like:
+
+```
+~/terraform-learning/
+├── main.tf
+├── .terraform/                  ← provider plugins downloaded here
+│   └── providers/
+│       └── registry.terraform.io/hashicorp/aws/6.35.1/linux_amd64/
+│           └── terraform-provider-aws_v6.35.1_x5
+└── .terraform.lock.hcl          ← provider version lock file (commit this to git)
+```
+
 ### Key concepts:
+
 - `provider "aws"` — connects Terraform to AWS
 - `resource "<type>" "<name>"` — defines an AWS resource
 - `<type>` = AWS resource type (e.g., `aws_s3_bucket`)
@@ -199,10 +227,10 @@ terraform apply   # create the bucket (type 'yes' to confirm)
 
 ### What is state?
 
-The `terraform.tfstate` file is Terraform's **memory** — it records every resource it has created, with all AWS-assigned properties (ARNs, IDs, IPs, etc.).
+After `terraform apply`, Terraform creates `~/terraform-learning/terraform.tfstate`. This is Terraform's **memory** — it records every resource it has created, with all AWS-assigned properties (ARNs, IDs, IPs, etc.).
 
 ```bash
-cat terraform.tfstate
+cat ~/terraform-learning/terraform.tfstate
 ```
 
 ### Why state matters:
@@ -213,7 +241,7 @@ cat terraform.tfstate
 | Would create duplicate resources | Compares state vs code on every plan |
 | Cannot detect drift | Detects manual changes in AWS console |
 
-### State file structure:
+### State file structure (`~/terraform-learning/terraform.tfstate`):
 
 ```json
 {
@@ -225,14 +253,14 @@ cat terraform.tfstate
     {
       "type": "aws_s3_bucket",
       "name": "my_first_bucket",
-      "instances": [{ "attributes": { ... } }]
+      "instances": [{ "attributes": { "..." : "..." } }]
     }
   ]
 }
 ```
 
-> ⚠️ **Never manually edit `terraform.tfstate`**  
-> ⚠️ **Never commit `terraform.tfstate` to git** — add it to `.gitignore`
+> ⚠️ **Never manually edit `~/terraform-learning/terraform.tfstate`**
+> ⚠️ **Never commit `terraform.tfstate` to git** — add it to `~/terraform-learning/.gitignore`
 
 ---
 
@@ -240,9 +268,13 @@ cat terraform.tfstate
 
 Variables make your Terraform code **reusable and configurable**.
 
-### `variables.tf`:
+### File: `~/terraform-learning/variables.tf`
+
+All input variable declarations go here.
 
 ```hcl
+# ~/terraform-learning/variables.tf
+
 variable "aws_region" {
   description = "AWS region to deploy resources"
   type        = string
@@ -250,7 +282,7 @@ variable "aws_region" {
 }
 
 variable "environment" {
-  description = "Environment name"
+  description = "Environment name (dev / staging / prod)"
   type        = string
   default     = "dev"
 }
@@ -276,9 +308,11 @@ variable "key_name" {
 | `list(string)` | `["a", "b", "c"]` |
 | `map(string)` | `{ key = "value" }` |
 
-### Using variables in code:
+### Using variables in `~/terraform-learning/main.tf`:
 
 ```hcl
+# ~/terraform-learning/main.tf
+
 provider "aws" {
   region = var.aws_region   # reference with var.<name>
 }
@@ -290,9 +324,11 @@ provider "aws" {
 
 Outputs print useful information after `terraform apply` — resource IDs, IPs, ARNs. Essential for passing values between modules.
 
-### `outputs.tf`:
+### File: `~/terraform-learning/outputs.tf`
 
 ```hcl
+# ~/terraform-learning/outputs.tf
+
 output "bucket_name" {
   description = "The name of the S3 bucket"
   value       = aws_s3_bucket.my_first_bucket.bucket
@@ -312,6 +348,7 @@ output "ec2_public_ip" {
 ### Query outputs anytime:
 
 ```bash
+cd ~/terraform-learning
 terraform output                    # all outputs
 terraform output bucket_arn         # specific output
 ```
@@ -322,35 +359,52 @@ terraform output bucket_arn         # specific output
 
 `terraform.tfvars` sets actual values for your variables — overriding defaults.
 
-### `terraform.tfvars`:
+### File: `~/terraform-learning/terraform.tfvars`
 
 ```hcl
+# ~/terraform-learning/terraform.tfvars
+# This file is auto-loaded by Terraform. DO NOT commit if it contains secrets.
+
 aws_region  = "ap-south-1"
 environment = "dev"
 account_id  = "179158350051"
 key_name    = "my-key-pair"
 ```
 
+### File: `~/terraform-learning/prod.tfvars`
+
+Create separate tfvars files for each environment:
+
+```hcl
+# ~/terraform-learning/prod.tfvars
+
+aws_region  = "ap-south-1"
+environment = "prod"
+account_id  = "179158350051"
+key_name    = "prod-key-pair"
+```
+
 ### Variable priority (low → high):
 
 ```
-1. default in variables.tf        ← lowest priority
-2. terraform.tfvars               ← overrides default
-3. -var-file="prod.tfvars"        ← overrides tfvars
-4. -var="environment=prod"        ← highest priority
+1. default in ~/terraform-learning/variables.tf        ← lowest priority
+2. ~/terraform-learning/terraform.tfvars               ← overrides default
+3. -var-file="~/terraform-learning/prod.tfvars"        ← overrides tfvars
+4. -var="environment=prod"                             ← highest priority
 ```
 
 ### Multiple environments:
 
 ```bash
 # Dev (uses terraform.tfvars automatically)
+cd ~/terraform-learning
 terraform apply
 
 # Production (specify a different vars file)
 terraform apply -var-file="prod.tfvars"
 ```
 
-> ⚠️ Never commit `terraform.tfvars` to git if it contains sensitive values — add to `.gitignore`
+> ⚠️ Add `~/terraform-learning/terraform.tfvars` to `~/terraform-learning/.gitignore` if it contains sensitive values.
 
 ---
 
@@ -358,9 +412,11 @@ terraform apply -var-file="prod.tfvars"
 
 Locals let you define computed values **once** and reuse them everywhere — avoiding repetition.
 
-### `locals.tf`:
+### File: `~/terraform-learning/locals.tf`
 
 ```hcl
+# ~/terraform-learning/locals.tf
+
 locals {
   # Build a common prefix used across all resources
   name_prefix = "myapp-${var.account_id}"
@@ -375,9 +431,11 @@ locals {
 }
 ```
 
-### Using locals:
+### Using locals in `~/terraform-learning/main.tf`:
 
 ```hcl
+# ~/terraform-learning/main.tf
+
 resource "aws_s3_bucket" "example" {
   bucket = local.name_prefix    # referenced with local.<name>
 
@@ -393,7 +451,7 @@ resource "aws_s3_bucket" "example" {
 
 ```hcl
 merge(local.common_tags, { Name = "specific-name" })
-# Result: all common_tags + Name tag combined
+# Result: all common_tags + Name tag combined into one map
 ```
 
 > 🏭 In production, `common_tags` is applied to **every single resource** for cost tracking, compliance, and auditing.
@@ -404,11 +462,15 @@ merge(local.common_tags, { Name = "specific-name" })
 
 A complete production-ready VPC setup with public and private subnets.
 
-### `vpc.tf` (using a module — see Section 14):
+### File: `~/terraform-learning/vpc.tf`
+
+This calls the VPC module (defined in Section 14) to provision all networking resources.
 
 ```hcl
+# ~/terraform-learning/vpc.tf
+
 module "vpc" {
-  source = "./modules/vpc"
+  source = "./modules/vpc"     # points to ~/terraform-learning/modules/vpc/
 
   aws_region          = var.aws_region
   name_prefix         = local.name_prefix
@@ -430,6 +492,8 @@ VPC (10.0.0.0/16)
 ### Resource dependency — Terraform auto-resolves order:
 
 ```hcl
+# ~/terraform-learning/modules/vpc/main.tf
+
 resource "aws_subnet" "public" {
   vpc_id = aws_vpc.main.id   # Terraform creates VPC first automatically!
 }
@@ -441,11 +505,15 @@ Terraform builds a **dependency graph** and creates resources in the correct ord
 
 ## 12. Security Groups
 
+### File: `~/terraform-learning/security_group.tf`
+
 ```hcl
+# ~/terraform-learning/security_group.tf
+
 resource "aws_security_group" "ec2_sg" {
   name        = "${local.name_prefix}-ec2-sg"
   description = "Security group for EC2 instance"
-  vpc_id      = module.vpc.vpc_id
+  vpc_id      = module.vpc.vpc_id    # output from ~/terraform-learning/modules/vpc/outputs.tf
 
   # Allow SSH
   ingress {
@@ -453,7 +521,7 @@ resource "aws_security_group" "ec2_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]   # restrict to VPN CIDR in production!
+    cidr_blocks = ["0.0.0.0/0"]   # ⚠️ restrict to VPN CIDR in production!
   }
 
   # Allow HTTP
@@ -480,7 +548,7 @@ resource "aws_security_group" "ec2_sg" {
 }
 ```
 
-> ⚠️ **Production rule:** Never use `0.0.0.0/0` for SSH. Restrict to your company VPN CIDR or use a bastion host.
+> ⚠️ **Production rule:** Never use `0.0.0.0/0` for SSH. Restrict to your company VPN CIDR (e.g., `10.0.0.0/8`) or use a bastion host.
 
 ---
 
@@ -490,8 +558,13 @@ resource "aws_security_group" "ec2_sg" {
 
 Data sources **read existing AWS information** without creating anything. Always prefixed with `data.` when referenced.
 
+### File: `~/terraform-learning/ec2.tf`
+
 ```hcl
-# Fetch the latest RHEL 9 AMI automatically
+# ~/terraform-learning/ec2.tf
+
+# ── DATA SOURCE ──────────────────────────────────────────────────────────────
+# Fetch the latest RHEL 9 AMI automatically — no hardcoding!
 data "aws_ami" "rhel9" {
   most_recent = true
   owners      = ["309956199498"]   # Red Hat's official AWS account ID
@@ -506,20 +579,14 @@ data "aws_ami" "rhel9" {
     values = ["x86_64"]
   }
 }
-```
 
-**Why use data sources for AMI?**  
-AMI IDs are region-specific and change with every OS update. Data sources always fetch the **latest** automatically — no hardcoding!
-
-### EC2 Instance:
-
-```hcl
+# ── RESOURCE ─────────────────────────────────────────────────────────────────
 resource "aws_instance" "web" {
-  ami                    = data.aws_ami.rhel9.id    # from data source
+  ami                    = data.aws_ami.rhel9.id    # resolved from data source above
   instance_type          = "t3.micro"
-  subnet_id              = module.vpc.public_subnet_id
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
-  key_name               = var.key_name
+  subnet_id              = module.vpc.public_subnet_id        # from ~/terraform-learning/modules/vpc/outputs.tf
+  vpc_security_group_ids = [aws_security_group.ec2_sg.id]    # from ~/terraform-learning/security_group.tf
+  key_name               = var.key_name                       # from ~/terraform-learning/variables.tf
 
   root_block_device {
     volume_size = 20
@@ -533,6 +600,9 @@ resource "aws_instance" "web" {
 }
 ```
 
+**Why use data sources for AMI?**
+AMI IDs are region-specific and change with every OS update. Data sources always fetch the **latest** automatically — no hardcoding!
+
 ---
 
 ## 14. Modules
@@ -542,25 +612,30 @@ Modules package infrastructure into **reusable blocks** — like functions in pr
 ### Why modules?
 
 ```
-Without modules:           With modules:
-dev/main.tf   ← 200 lines  dev/main.tf   ← 20 lines (calls module)
-prod/main.tf  ← 200 lines  prod/main.tf  ← 20 lines (calls module)
-              ← duplicate!               ← single source of truth!
+Without modules:                    With modules:
+~/terraform-learning/dev/main.tf    ~/terraform-learning/dev/main.tf    ← 20 lines
+  → 200 lines of VPC code             → calls ./modules/vpc
+~/terraform-learning/prod/main.tf   ~/terraform-learning/prod/main.tf   ← 20 lines
+  → 200 lines of VPC code (duplicate) → calls ./modules/vpc (single source of truth)
 ```
 
 ### Module structure — every module needs 3 files:
 
 ```
-modules/
+~/terraform-learning/modules/
 └── vpc/
-    ├── main.tf        ← actual resources
+    ├── main.tf        ← actual AWS resources
     ├── variables.tf   ← what the module accepts as input
     └── outputs.tf     ← what the module exposes as output
 ```
 
-### `modules/vpc/main.tf`:
+---
+
+### File: `~/terraform-learning/modules/vpc/main.tf`
 
 ```hcl
+# ~/terraform-learning/modules/vpc/main.tf
+
 resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -568,6 +643,14 @@ resource "aws_vpc" "this" {
 
   tags = merge(var.common_tags, {
     Name = "${var.name_prefix}-vpc"
+  })
+}
+
+resource "aws_internet_gateway" "this" {
+  vpc_id = aws_vpc.this.id
+
+  tags = merge(var.common_tags, {
+    Name = "${var.name_prefix}-igw"
   })
 }
 
@@ -581,16 +664,59 @@ resource "aws_subnet" "public" {
     Name = "${var.name_prefix}-public-subnet"
   })
 }
-# ... more resources
+
+resource "aws_subnet" "private" {
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = var.private_subnet_cidr
+  availability_zone = "${var.aws_region}b"
+
+  tags = merge(var.common_tags, {
+    Name = "${var.name_prefix}-private-subnet"
+  })
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.this.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.this.id
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.name_prefix}-public-rt"
+  })
+}
+
+resource "aws_route_table_association" "public" {
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
+}
 ```
 
-### `modules/vpc/variables.tf`:
+---
+
+### File: `~/terraform-learning/modules/vpc/variables.tf`
 
 ```hcl
+# ~/terraform-learning/modules/vpc/variables.tf
+
 variable "vpc_cidr" {
   description = "CIDR block for VPC"
   type        = string
   default     = "10.0.0.0/16"
+}
+
+variable "public_subnet_cidr" {
+  description = "CIDR block for public subnet"
+  type        = string
+  default     = "10.0.1.0/24"
+}
+
+variable "private_subnet_cidr" {
+  description = "CIDR block for private subnet"
+  type        = string
+  default     = "10.0.2.0/24"
 }
 
 variable "aws_region" {
@@ -599,7 +725,7 @@ variable "aws_region" {
 }
 
 variable "name_prefix" {
-  description = "Prefix for resource names"
+  description = "Prefix for all resource names"
   type        = string
 }
 
@@ -610,42 +736,60 @@ variable "common_tags" {
 }
 ```
 
-### `modules/vpc/outputs.tf`:
+---
+
+### File: `~/terraform-learning/modules/vpc/outputs.tf`
 
 ```hcl
+# ~/terraform-learning/modules/vpc/outputs.tf
+# These outputs are consumed in ~/terraform-learning/vpc.tf, ec2.tf, security_group.tf, etc.
+
 output "vpc_id" {
-  value = aws_vpc.this.id
+  description = "ID of the created VPC"
+  value       = aws_vpc.this.id
 }
 
 output "public_subnet_id" {
-  value = aws_subnet.public.id
+  description = "ID of the public subnet"
+  value       = aws_subnet.public.id
 }
 
 output "private_subnet_id" {
-  value = aws_subnet.private.id
+  description = "ID of the private subnet"
+  value       = aws_subnet.private.id
+}
+
+output "internet_gateway_id" {
+  description = "ID of the Internet Gateway"
+  value       = aws_internet_gateway.this.id
 }
 ```
 
-### Calling the module:
+---
+
+### Calling the module from the root (`~/terraform-learning/vpc.tf`):
 
 ```hcl
-module "vpc" {
-  source = "./modules/vpc"   # path to module
+# ~/terraform-learning/vpc.tf
 
-  # Pass inputs
+module "vpc" {
+  source = "./modules/vpc"    # relative path to ~/terraform-learning/modules/vpc/
+
+  # Pass inputs (defined in ~/terraform-learning/modules/vpc/variables.tf)
   aws_region          = var.aws_region
   name_prefix         = local.name_prefix
   vpc_cidr            = "10.0.0.0/16"
+  public_subnet_cidr  = "10.0.1.0/24"
+  private_subnet_cidr = "10.0.2.0/24"
   common_tags         = local.common_tags
 }
 
-# Consume module outputs
-resource "aws_instance" "web" {
-  subnet_id = module.vpc.public_subnet_id   # module.<name>.<output>
-}
+# Consume module outputs (defined in ~/terraform-learning/modules/vpc/outputs.tf)
+# Usage example — EC2 instance uses the public subnet from the module:
+# subnet_id = module.vpc.public_subnet_id
 ```
 
-> ⚠️ Always run `terraform init` after adding a new module!
+> ⚠️ Always run `terraform init` after adding a new module — it registers the module path.
 
 ---
 
@@ -658,11 +802,23 @@ resource "aws_instance" "web" {
 | Lost if EC2 is terminated | Stored safely in S3 |
 | Team members overwrite each other | DynamoDB locking prevents conflicts |
 | No audit trail | S3 versioning tracks every change |
-| Not encrypted | Encrypted at rest |
+| Not encrypted at rest | Encrypted with SSE |
 
-### Step 1 — Create DynamoDB lock table:
+### Step 1 — Create the DynamoDB lock table
+
+Keep this in a **separate bootstrap project**, not mixed with app infrastructure.
+
+### File: `~/terraform-bootstrap/main.tf`
 
 ```hcl
+# ~/terraform-bootstrap/main.tf
+# Run this ONCE to create the state locking table.
+# This project must use LOCAL state (no backend block here).
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
 resource "aws_dynamodb_table" "terraform_lock" {
   name         = "terraform-state-lock"
   billing_mode = "PAY_PER_REQUEST"
@@ -673,49 +829,96 @@ resource "aws_dynamodb_table" "terraform_lock" {
     type = "S"
   }
 
-  tags = merge(local.common_tags, {
-    Name = "terraform-state-lock"
-  })
+  tags = {
+    Name      = "terraform-state-lock"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = "my-terraform-state-bucket-179158350051"
+
+  tags = {
+    Name      = "terraform-state-bucket"
+    ManagedBy = "Terraform"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
 }
 ```
 
-### Step 2 — Configure S3 backend:
+```bash
+# Apply once to create infrastructure for state storage
+cd ~/terraform-bootstrap
+terraform init
+terraform apply
+```
+
+---
+
+### Step 2 — Configure S3 backend for your app project
+
+### File: `~/terraform-learning/backend.tf`
 
 ```hcl
+# ~/terraform-learning/backend.tf
+# This block tells Terraform to store state in S3 instead of locally.
+# After adding this, run: terraform init -migrate-state
+
 terraform {
   backend "s3" {
-    bucket         = "my-terraform-state-bucket"
-    key            = "dev/terraform.tfstate"    # path inside bucket
+    bucket         = "my-terraform-state-bucket-179158350051"
+    key            = "dev/terraform.tfstate"   # path inside the S3 bucket
     region         = "ap-south-1"
-    dynamodb_table = "terraform-state-lock"
+    dynamodb_table = "terraform-state-lock"    # created in ~/terraform-bootstrap/main.tf
     encrypt        = true
   }
 }
 ```
 
-### Step 3 — Migrate state to S3:
+---
+
+### Step 3 — Migrate local state to S3:
 
 ```bash
+cd ~/terraform-learning
 terraform init -migrate-state
 # Type 'yes' when prompted
+# ~/terraform-learning/terraform.tfstate is now uploaded to S3
 ```
 
 ### How locking works:
 
 ```
-Engineer 1 → writes lock entry to DynamoDB → applies safely ✅
-Engineer 2 → sees lock exists → waits or errors out ✅
+Engineer 1 → runs terraform apply → writes lock entry to DynamoDB → applies safely ✅
+Engineer 2 → runs terraform apply → sees lock already exists    → blocked until lock released ✅
               (prevents simultaneous applies and state corruption)
 ```
 
 ### Verify state is in S3:
 
 ```bash
-aws s3 ls s3://my-terraform-state-bucket/dev/
-aws s3 cp s3://my-terraform-state-bucket/dev/terraform.tfstate - | head -20
+aws s3 ls s3://my-terraform-state-bucket-179158350051/dev/
+aws s3 cp s3://my-terraform-state-bucket-179158350051/dev/terraform.tfstate - | head -20
 ```
 
-> 🏭 **Production tip:** Keep your backend infrastructure (S3 bucket + DynamoDB table) in a **separate Terraform project** (e.g., `terraform-bootstrap`). Never mix it with app infrastructure — you could accidentally destroy your state storage!
+> 🏭 **Production tip:** Keep `~/terraform-bootstrap/` as a completely separate project. Never run `terraform destroy` inside `~/terraform-learning/` expecting it to delete the bootstrap resources — they live in a different state file.
 
 ---
 
@@ -725,27 +928,53 @@ When you refactor code (rename resources, move into modules), Terraform sees old
 
 **`terraform state mv` renames resources in state without touching AWS.**
 
-### Example — moving resources into a module:
+### Example — moving flat resources into the VPC module
+
+Before refactoring, resources were defined directly in `~/terraform-learning/main.tf`:
+
+```
+aws_vpc.main
+aws_subnet.public
+aws_subnet.private
+aws_internet_gateway.main
+aws_route_table.public
+aws_route_table_association.public
+```
+
+After refactoring, they live inside `~/terraform-learning/modules/vpc/main.tf`:
+
+```
+module.vpc.aws_vpc.this
+module.vpc.aws_subnet.public
+module.vpc.aws_subnet.private
+module.vpc.aws_internet_gateway.this
+module.vpc.aws_route_table.public
+module.vpc.aws_route_table_association.public
+```
+
+### Run `state mv` for each resource:
 
 ```bash
-# Before refactor: aws_vpc.main
-# After refactor:  module.vpc.aws_vpc.this
+cd ~/terraform-learning
 
-terraform state mv aws_vpc.main module.vpc.aws_vpc.this
-terraform state mv aws_subnet.public module.vpc.aws_subnet.public
-terraform state mv aws_subnet.private module.vpc.aws_subnet.private
-terraform state mv aws_internet_gateway.main module.vpc.aws_internet_gateway.this
-terraform state mv aws_route_table.public module.vpc.aws_route_table.public
-terraform state mv aws_route_table_association.public module.vpc.aws_route_table_association.public
+terraform state mv aws_vpc.main                          module.vpc.aws_vpc.this
+terraform state mv aws_subnet.public                     module.vpc.aws_subnet.public
+terraform state mv aws_subnet.private                    module.vpc.aws_subnet.private
+terraform state mv aws_internet_gateway.main             module.vpc.aws_internet_gateway.this
+terraform state mv aws_route_table.public                module.vpc.aws_route_table.public
+terraform state mv aws_route_table_association.public    module.vpc.aws_route_table_association.public
 ```
 
-After running these, `terraform plan` should show:
-```
-No changes. Your infrastructure matches the configuration.
+After running all commands, verify:
+
+```bash
+terraform plan
+# Expected output:
+# No changes. Your infrastructure matches the configuration.
 ```
 
-> 🏭 **This is one of the most important production Terraform skills.**  
-> Senior engineers use `terraform state mv` constantly when reorganizing code.  
+> 🏭 **This is one of the most important production Terraform skills.**
+> Senior engineers use `terraform state mv` constantly when reorganizing code.
 > Never blindly apply a plan that destroys production — always check if a `state mv` is the right fix!
 
 ---
@@ -753,46 +982,59 @@ No changes. Your infrastructure matches the configuration.
 ## 17. terraform destroy & Cleanup
 
 ```bash
+cd ~/terraform-learning
 terraform destroy
-# Type 'yes' to confirm — destroys ALL managed resources
+# Type 'yes' to confirm — destroys ALL resources tracked in state
 ```
 
 ### Common destroy errors and fixes:
 
 **Error: S3 bucket not empty**
-```bash
-# Empty the bucket first
-aws s3 rm s3://my-bucket-name --recursive
 
-# Then delete it
-aws s3 rb s3://my-bucket-name
+```bash
+# Empty the S3 bucket first
+aws s3 rm s3://my-unique-bucket-name-123456 --recursive
+
+# Then Terraform can destroy it
+terraform destroy
 ```
 
-**Error: State lock stuck**
+**Error: State lock stuck** (e.g., a previous apply was interrupted)
+
 ```bash
+cd ~/terraform-learning
 terraform force-unlock <lock-id>
+# lock-id is shown in the error message
 ```
 
-**Error: Backend S3 bucket deleted before migrating state back**
-```bash
-# Remove .terraform cache and reinitialize with local backend
-rm -rf .terraform
-rm -f terraform.tfstate
+**Error: Backend S3 bucket accidentally deleted before migrating state back**
 
-# Remove backend block from backend.tf, then:
+```bash
+# 1. Remove .terraform directory
+rm -rf ~/terraform-learning/.terraform
+rm -f  ~/terraform-learning/terraform.tfstate
+
+# 2. Remove the backend block from ~/terraform-learning/backend.tf
+#    (comment out or delete the terraform { backend "s3" { ... } } block)
+
+# 3. Reinitialize with local backend
+cd ~/terraform-learning
 terraform init
 ```
 
 ### Production destroy order lesson:
 
-Keep backend resources (S3 + DynamoDB) in a **separate project** so they are never accidentally destroyed with app infrastructure.
+Because `~/terraform-bootstrap/` is a separate project, destroying `~/terraform-learning/` infrastructure can never accidentally destroy your S3 state bucket or DynamoDB lock table. They are managed by completely separate state.
 
 ---
 
 ## 18. Production Best Practices
 
-### Always tag every resource:
+### Always tag every resource (`~/terraform-learning/locals.tf`):
+
 ```hcl
+# ~/terraform-learning/locals.tf
+
 locals {
   common_tags = {
     Environment = var.environment
@@ -803,129 +1045,173 @@ locals {
 }
 ```
 
-### Never hardcode sensitive values:
-```hcl
-# ❌ Wrong
-access_key = "AKIAIOSFODNN7EXAMPLE"
+Apply to every resource:
 
-# ✅ Right — use environment variables or AWS IAM roles
-# Terraform automatically reads from ~/.aws/credentials
+```hcl
+tags = merge(local.common_tags, { Name = "resource-specific-name" })
 ```
 
-### Always encrypt disks:
+### Never hardcode sensitive values:
+
 ```hcl
+# ❌ Wrong — never hardcode credentials anywhere in ~/terraform-learning/
+access_key = "AKIAIOSFODNN7EXAMPLE"
+
+# ✅ Right — Terraform reads from ~/.aws/credentials automatically
+# Or use IAM Instance Profile when running from an EC2 instance
+```
+
+### Always encrypt EBS volumes (`~/terraform-learning/ec2.tf`):
+
+```hcl
+# ~/terraform-learning/ec2.tf
+
 root_block_device {
-  encrypted = true
+  volume_size = 20
+  volume_type = "gp3"
+  encrypted   = true
 }
 ```
 
-### Use `-out` flag in CI/CD:
+### Use `-out` flag in CI/CD pipelines:
+
 ```bash
-terraform plan -out=tfplan      # save plan
-terraform apply tfplan          # apply exactly that plan
+# In your CI/CD pipeline (e.g., Jenkins, GitLab CI)
+cd ~/terraform-learning
+terraform plan -out=tfplan       # save exact plan to ~/terraform-learning/tfplan
+terraform apply tfplan           # apply exactly that plan — no surprises
 ```
 
-### Restrict SSH in security groups:
+### Restrict SSH in security groups (`~/terraform-learning/security_group.tf`):
+
 ```hcl
-# ❌ Wrong — open to internet
+# ~/terraform-learning/security_group.tf
+
+# ❌ Wrong — open to the entire internet
 cidr_blocks = ["0.0.0.0/0"]
 
-# ✅ Right — restrict to VPN or bastion
+# ✅ Right — restrict to your corporate VPN or internal network
 cidr_blocks = ["10.0.0.0/8"]
 ```
 
-### `.gitignore` for Terraform projects:
-```
-.terraform/
-terraform.tfstate
-terraform.tfstate.backup
-*.tfvars          # if contains secrets
-.terraform.lock.hcl   # optional — some teams commit this
+### `~/terraform-learning/.gitignore`:
+
+```gitignore
+# ~/terraform-learning/.gitignore
+
+.terraform/                # provider plugins — regenerated by terraform init
+terraform.tfstate          # local state — use remote state in production
+terraform.tfstate.backup   # backup of previous state
+*.tfvars                   # may contain secrets — evaluate per file
+tfplan                     # saved plan files
+
+# Keep these in git:
+# .terraform.lock.hcl      ← commit this! Pins provider versions for the team
 ```
 
 ---
 
 ## 19. Project File Structure
 
-### Flat structure (small projects):
+### Flat structure (small/learning projects):
 
 ```
-terraform-project/
-├── main.tf              ← resources
-├── variables.tf         ← input variables
-├── outputs.tf           ← output values
-├── locals.tf            ← local computed values
-├── vpc.tf               ← VPC resources
-├── security_group.tf    ← security group resources
-├── ec2.tf               ← EC2 resources
-├── backend.tf           ← backend + DynamoDB
-├── terraform.tfvars     ← variable values (don't commit secrets!)
-└── .terraform/          ← provider plugins (never commit)
+~/terraform-learning/
+├── main.tf              ← root resources (provider, misc)
+├── variables.tf         ← all input variable declarations
+├── outputs.tf           ← all output value declarations
+├── locals.tf            ← computed locals (name_prefix, common_tags)
+├── vpc.tf               ← module "vpc" call
+├── security_group.tf    ← aws_security_group resources
+├── ec2.tf               ← data "aws_ami" + aws_instance resources
+├── backend.tf           ← terraform { backend "s3" { ... } }
+├── terraform.tfvars     ← actual variable values (don't commit secrets!)
+├── prod.tfvars          ← production overrides
+├── .gitignore           ← excludes .terraform/, tfstate, etc.
+├── .terraform.lock.hcl  ← provider version lock (commit this)
+└── .terraform/          ← downloaded providers (never commit)
+    └── providers/
+        └── registry.terraform.io/hashicorp/aws/6.35.1/linux_amd64/
 ```
 
 ### Module structure (production):
 
 ```
-terraform-project/
+~/terraform-learning/
 ├── main.tf
 ├── variables.tf
 ├── outputs.tf
 ├── locals.tf
+├── vpc.tf
+├── security_group.tf
+├── ec2.tf
 ├── backend.tf
 ├── terraform.tfvars
+├── prod.tfvars
+├── .gitignore
+├── .terraform.lock.hcl
 └── modules/
     ├── vpc/
-    │   ├── main.tf
-    │   ├── variables.tf
-    │   └── outputs.tf
+    │   ├── main.tf        ← aws_vpc, aws_subnet, aws_igw, aws_route_table
+    │   ├── variables.tf   ← vpc_cidr, public_subnet_cidr, etc.
+    │   └── outputs.tf     ← vpc_id, public_subnet_id, private_subnet_id
     ├── ec2/
-    │   ├── main.tf
-    │   ├── variables.tf
-    │   └── outputs.tf
+    │   ├── main.tf        ← data "aws_ami", aws_instance
+    │   ├── variables.tf   ← instance_type, key_name, subnet_id, etc.
+    │   └── outputs.tf     ← instance_id, public_ip, private_ip
     └── s3/
-        ├── main.tf
-        ├── variables.tf
-        └── outputs.tf
+        ├── main.tf        ← aws_s3_bucket, versioning, encryption
+        ├── variables.tf   ← bucket_name, enable_versioning, etc.
+        └── outputs.tf     ← bucket_id, bucket_arn
+
+~/terraform-bootstrap/       ← SEPARATE project for state infrastructure
+├── main.tf                  ← aws_s3_bucket (state), aws_dynamodb_table (lock)
+├── outputs.tf               ← bucket_name, table_name
+└── terraform.tfstate        ← local state only — never remote
 ```
 
 ---
 
 ## 20. Key Commands Reference
 
+All commands should be run from within the project directory:
+
 ```bash
-# Initialize
-terraform init                    # first time setup
-terraform init -migrate-state     # migrate to new backend
-terraform init -reconfigure       # force reinitialize
+cd ~/terraform-learning
 
-# Plan & Apply
-terraform plan                    # preview changes
-terraform plan -out=tfplan        # save plan to file
-terraform apply                   # apply changes
-terraform apply tfplan            # apply saved plan
-terraform apply -var-file=prod.tfvars  # use specific vars file
-terraform apply -auto-approve     # skip confirmation (use in CI/CD only)
+# ── Initialize ─────────────────────────────────────────────────────────────
+terraform init                        # first-time setup; downloads providers to .terraform/
+terraform init -migrate-state         # migrate local tfstate to the S3 backend in backend.tf
+terraform init -reconfigure           # force reinitialize (e.g., after changing backend config)
 
-# State management
-terraform show                    # show current state
-terraform state list              # list all resources
-terraform state show <resource>   # show specific resource
-terraform state mv <old> <new>    # rename resource in state
-terraform state rm <resource>     # remove resource from state (doesn't delete from AWS)
-terraform force-unlock <lock-id>  # release stuck lock
+# ── Plan & Apply ────────────────────────────────────────────────────────────
+terraform plan                        # preview all changes
+terraform plan -out=tfplan            # save plan to ~/terraform-learning/tfplan
+terraform apply                       # apply changes (prompts for 'yes')
+terraform apply tfplan                # apply the exact saved plan (no prompt)
+terraform apply -var-file=prod.tfvars # use ~/terraform-learning/prod.tfvars
+terraform apply -auto-approve         # skip confirmation prompt (CI/CD only)
 
-# Outputs
-terraform output                  # show all outputs
-terraform output <name>           # show specific output
+# ── State Management ────────────────────────────────────────────────────────
+terraform show                        # show all resources in current state
+terraform state list                  # list all resource addresses in state
+terraform state show aws_instance.web # show full details of a specific resource
+terraform state mv <old> <new>        # rename a resource in state (no AWS changes)
+terraform state rm <resource>         # remove from state without deleting from AWS
+terraform force-unlock <lock-id>      # release a stuck DynamoDB state lock
 
-# Cleanup
-terraform destroy                 # destroy all resources
-terraform destroy -target=<resource>  # destroy specific resource
+# ── Outputs ─────────────────────────────────────────────────────────────────
+terraform output                      # show all defined outputs
+terraform output bucket_arn           # show a specific output value
 
-# Code quality
-terraform fmt                     # format code
-terraform validate                # validate syntax
-terraform graph                   # generate dependency graph
+# ── Cleanup ─────────────────────────────────────────────────────────────────
+terraform destroy                     # destroy all resources in state
+terraform destroy -target=aws_instance.web  # destroy only a specific resource
+
+# ── Code Quality ────────────────────────────────────────────────────────────
+terraform fmt                         # format all .tf files in current directory
+terraform validate                    # validate HCL syntax (no AWS calls)
+terraform graph                       # output dependency graph in DOT format
 ```
 
 ---
@@ -934,20 +1220,18 @@ terraform graph                   # generate dependency graph
 
 ```
 AWS Mumbai (ap-south-1)
-├── S3 Bucket            → app storage + state storage
-├── DynamoDB Table       → terraform state locking
-├── VPC (module)         → vpc-xxxxxxxxx (10.0.0.0/16)
-│   ├── Public Subnet    → subnet-xxxxxxxxx (10.0.1.0/24) ap-south-1a
-│   ├── Private Subnet   → subnet-xxxxxxxxx (10.0.2.0/24) ap-south-1b
-│   ├── Internet Gateway → igw-xxxxxxxxx
-│   └── Route Table      → rtb-xxxxxxxxx (public → IGW)
-├── Security Group       → sg-xxxxxxxxx (SSH:22, HTTP:80)
-└── EC2 Instance         → t3.micro, RHEL 9, 20GB gp3 encrypted
+│
+├── ~/terraform-bootstrap/              ← Bootstrap project (separate state)
+│   ├── S3 Bucket (state storage)       → my-terraform-state-bucket-179158350051
+│   └── DynamoDB Table (state lock)     → terraform-state-lock
+│
+└── ~/terraform-learning/               ← App project (state in S3)
+    ├── S3 Bucket (app)                 → my-unique-bucket-name-123456
+    ├── VPC (module)                    → 10.0.0.0/16
+    │   ├── Public Subnet               → 10.0.1.0/24  (ap-south-1a)
+    │   ├── Private Subnet              → 10.0.2.0/24  (ap-south-1b)
+    │   ├── Internet Gateway
+    │   └── Route Table                 → public subnet → IGW
+    ├── Security Group                  → SSH:22, HTTP:80
+    └── EC2 Instance                    → t3.micro, RHEL 9, 20GB gp3 encrypted
 ```
-
-**13 production-ready AWS resources — all managed by Terraform!**
-
----
-
-*Document created based on hands-on learning session.*  
-*Author: Sajal Jana*
