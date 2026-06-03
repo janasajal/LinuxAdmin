@@ -1,0 +1,48 @@
+FTP default connection port is 20
+
+***
+# yum install vsftpd -y
+# systemctl start vsftpd.service
+# systemctl status vsftpd.service
+# systemctl enable vsftpd.service
+
+# vim /etc/vsftpd/vsftpd.conf
+
+# Allow anonymous FTP? (Beware - allowed by default if you comment this out).
+anonymous_enable=no	 ## if it is set as yes then only users in user_file will able to login
+# Uncomment this to allow local users to log in.
+local_enable=YES
+# Uncomment this to enable any form of FTP write command.
+write_enable=YESiiq:
+
+# Only accept certain users
+userlist_enable=YES
+userlist_deny=NO
+userlist_file=/etc/vsftpd.users
+#
+
+# the user does not have write access to the top level directory within the chroot
+chroot_local_user=YES
+chroot_list_enable=YES
+chroot_list_file=/etc/vsftpd/chroot_list
+## means that by default ALL users get chrooted(i.e. will not able to switch from home directory) except users in the file
+***if it is -
+chroot_local_user=NO
+chroot_list_enable=YES
+means that by default ONLY users in the file get chrooted
+
+** if mention below -
+
+chroot_local_user=NO
+chroot_list_enable=NO
+# (default follows)
+chroot_list_file=/etc/vsftpd/chroot_list
+### means local user can switch from local directory
+
+************
+************
+to check ftp log
+# tail -f /var/log/xferlog
+
+************
+
