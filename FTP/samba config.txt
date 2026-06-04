@@ -1,0 +1,23 @@
+ yum install samba samba-client samba-common
+  232  vim /etc/samba/smb.conf
+[backup]
+        path = /nfa_backup/Backup/backup/
+        browseable = yes
+        writable = yes
+        guest ok = no  ###Only authenticated users allowed
+        read only = no
+
+
+ cat /etc/passwd
+  234  smbpasswd -a nfaftp
+5  sudo systemctl start smb
+  236  sudo systemctl start nmb
+  237  sudo systemctl enable smb
+  238  sudo systemctl enable nmb
+ systemctl restart nmb
+  256  systemctl restart smb
+
+
+*** if required run below from windows
+Open PowerShell as an administrator.
+Run the command: Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol
