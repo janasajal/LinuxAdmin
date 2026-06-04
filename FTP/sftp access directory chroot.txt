@@ -1,0 +1,49 @@
+================================================================================
+  SFTP CHROOT SETUP -- fwlog USER
+================================================================================
+
+A dedicated user account was created and a password was assigned:
+
+  # useradd fwlog
+  # passwd fwlog
+  passwd: all authentication tokens updated successfully.
+
+The chroot directory structure was prepared. The home directory was kept
+owned by root, as required by sshd for ChrootDirectory enforcement:
+
+  # mkdir -p /home/fwlog/logdata
+  # chown root:root /home/fwlog
+  # chmod 755 /home/fwlog
+  # chown fwlog:fwlog /home/fwlog/logdata
+
+The passwd entry was confirmed:
+
+  fwlog:x:1003:1003::/home/fwlog:/bin/bash
+
+--------------------------------------------------------------------------------
+  /etc/ssh/sshd_config -- Match block appended
+--------------------------------------------------------------------------------
+
+  Match User fwlog
+      ForceCommand internal-sftp
+      PasswordAuthentication yes
+      ChrootDirectory /home/fwlog
+      AllowTcpForwarding no
+      X11Forwarding no
+
+sshd was restarted to apply the changes:
+
+  # service sshd restart
+  Redirecting to /bin/systemctl restart sshd.service
+
+================================================================================
+  SUMMARY
+================================================================================
+
+  User           : fwlog (uid 1003)
+  Chroot root    : /home/fwlog          -- owned root:root  755
+  Write target   : /home/fwlog/logdata  -- owned fwlog:fwlog
+  Access         : SFTP only (shell blocked via ForceCommand)
+  Tunnelling     : disabled
+
+================================================================================
