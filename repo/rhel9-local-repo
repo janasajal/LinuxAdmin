@@ -22,3 +22,4 @@ If you want to prevent the automatic creation of the redhat.repo file Set enable
 #vi /etc/yum/pluginconf.d/subscription-manager.conf
 [main]
 enabled=0
+
