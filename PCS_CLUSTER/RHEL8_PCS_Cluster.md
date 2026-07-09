@@ -1007,6 +1007,7 @@ vgchange --systemid "" db_vg
 
 # Verify LVM-activate resource configuration
 pcs resource show db_lvm
+# pcs resource move webservice node2 (in cluster suite #clusvcadm -r service -m node2) 
 ```
 
 ### Two-node quorum — resources will not start after one node disappears
