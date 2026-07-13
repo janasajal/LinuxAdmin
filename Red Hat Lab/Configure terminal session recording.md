@@ -129,3 +129,26 @@ The session was recorded in real-time, so if you started the bash session but di
 In addition to some standard video player functionality, the buttons on the right side of the player will allow you to zoom in and out to get closer, or further away, look at the content. Also, the search function located at the bottom of the player window will search the recorded session for text and report time codes at which that string is found. Those time codes are links, which will change the location of the playback in the player.
 
 Below the player is additional metadata about this session as well as the log entries for the session.
+
+### Step 7:
+Review a session from the command-line
+The command to use to review recorded sessions from the command-line is tlog-play, which takes a session identifier to determine which session data to replay.
+
+In the default configuration, recorded session data is sent to the journald managed log. As a result, to determine the available session data, you will use the command journalctl. The following command will search through the journal log and locate strings that contain the rec string, plus the identifier included in that message.
+
+journalctl -o verbose | grep -P "\"rec\".*?\,"
+Below, is an example of one of those messages, but there will likely be more than one message associated with each session.
+
+Journalctl Output
+
+Figure 1. Journalctl Output
+<img width="1269" height="354" alt="image" src="https://github.com/user-attachments/assets/7b12ddbd-67eb-4300-bb82-6d25b782e31d" />
+
+To replay the session, you run tlog-play with the session identifier, using the log message displayed above, the command would look like:
+
+tlog-play -r journal -M TLOG_REC=b9dd6a8391714e42be4f6f885875d48f-22ea-c2f05
+
+Your session identifier is going to be different, the following command will use some shell tools to isolate the first recording from your journal. As you replay the session, your existing terminal session will be used for the replay. Once the replay is complete, your session will be returned to your control. You can interrupt the playback with a <CTRL>-C.
+
+tlog-play -r journal -M TLOG_REC=$(journalctl -o verbose | grep -P "\"rec\".*?\." | cut -d, -f3 | cut -d: -f2 | head -n 1 | sed -e s/\"//g)
+The above command will replay the session to completion, in real-time.
