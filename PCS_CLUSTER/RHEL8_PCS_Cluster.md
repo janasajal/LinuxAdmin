@@ -1010,6 +1010,7 @@ pcs resource show db_lvm
 # pcs resource move webservice node2 (in cluster suite #clusvcadm -r service -m node2) 
 ```
 
+
 ### Two-node quorum — resources will not start after one node disappears
 ```bash
 # This is correct and expected behaviour.
