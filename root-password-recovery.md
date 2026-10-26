@@ -1,6 +1,10 @@
 ```
 Resetting root password by booting into Single User Mode
-Step-1: Reboot your system and interrupt the 'GRUB 2' boot screen by hitting 'e' key.
+Step-1: 
+Reboot the machine. As soon as the GRUB 2 screen appears, hit any arrow key to stop the boot countdown.
+
+Select the kernel is highlighted (avoid rescue entries), and press e to open the boot parameters editor.
+
 ## N.B.: Please do not select rescue mode. Select the grub which is used to load OS (Default one).
 The kernel boot parameters appear. Find the word 'linux16' and add ‘rd.break’ at the end of the line, then press 'Ctrl+x' to boot the system with the changed parameters.
 
